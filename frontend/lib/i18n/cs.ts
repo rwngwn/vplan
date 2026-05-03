@@ -13,6 +13,7 @@ export const cs = {
   'dashboard.taskTelemetry': 'Telemetrie úkolů pouze pro čtení',
   'dashboard.searchTasks': 'Hledat úkoly',
   'dashboard.allStatuses': 'Všechny stavy',
+  'dashboard.mobileStatusFilter': 'Filtr stavů na mobilu',
   'dashboard.loading': 'Načítám…',
   'dashboard.wikiReview': 'Wiki kontrola',
   'dashboard.statusDetail': 'Stav',

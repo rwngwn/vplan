@@ -9,7 +9,7 @@ import { marked } from 'marked'
 import { createNote, fetchNotes, updateNote } from '../../lib/api'
 import { t } from '../../lib/i18n'
 
-const Editor = dynamic(() => import('react-simple-wysiwyg').then((m) => m.DefaultEditor), { ssr: false })
+const Editor = dynamic(() => import('react-simple-wysiwyg').then((m) => m.Editor), { ssr: false })
 const BtnBold = dynamic(() => import('react-simple-wysiwyg').then((m) => m.BtnBold), { ssr: false })
 const BtnItalic = dynamic(() => import('react-simple-wysiwyg').then((m) => m.BtnItalic), { ssr: false })
 const BtnUnderline = dynamic(() => import('react-simple-wysiwyg').then((m) => m.BtnUnderline), { ssr: false })

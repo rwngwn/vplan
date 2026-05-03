@@ -269,9 +269,10 @@ export default function WikiNotePage() {
               value={title}
               onChange={(e) => { setTitle(e.target.value); setIsDirty(true) }}
               className="app-document-title mb-4"
+              data-testid="wiki-title-input"
             />
 
-            <div ref={editorShellRef} className="app-document-editor app-editor-shell relative">
+            <div ref={editorShellRef} className="app-document-editor app-editor-shell relative" data-testid="wiki-editor-shell">
               <EditorProvider>
                 <Toolbar>
                   <BtnUndo />
@@ -301,13 +302,14 @@ export default function WikiNotePage() {
               {draftHighlightRects.map((rect, idx) => (
                 <div
                   key={`draft-rect-${idx}`}
-                  className="pointer-events-none absolute rounded-[3px] bg-amber-300/35 ring-1 ring-amber-200/45"
+                  className="wiki-draft-selection-highlight pointer-events-none absolute rounded-[3px] bg-amber-300/35 ring-1 ring-amber-200/45"
+                  data-testid="wiki-draft-selection-highlight"
                   style={{ left: rect.left, top: rect.top, width: rect.width, height: rect.height }}
                 />
               ))}
 
               {selectionToolbar && (
-                <div className="app-selection-toolbar" style={{ left: selectionToolbar.x, top: selectionToolbar.y }} onMouseDown={(e) => e.preventDefault()}>
+                <div className="app-selection-toolbar" data-testid="wiki-selection-toolbar" style={{ left: selectionToolbar.x, top: selectionToolbar.y }} onMouseDown={(e) => e.preventDefault()}>
                   <button
                     type="button"
                     onMouseDown={(e) => e.preventDefault()}
@@ -317,6 +319,7 @@ export default function WikiNotePage() {
                   >Copy</button>
                   <button
                     type="button"
+                    data-testid="wiki-selection-comment-button"
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => {
                       const host = editorShellRef.current
@@ -349,6 +352,7 @@ export default function WikiNotePage() {
                   <div className="app-text-faint mb-2 text-xs">„{commentPopover.quote.slice(0, 96)}{commentPopover.quote.length > 96 ? '…' : ''}“</div>
                   <textarea
                     className="app-field min-h-20 w-full rounded p-2 text-sm"
+                    data-testid="wiki-comment-textarea"
                     placeholder="Add a comment..."
                     value={contextComment}
                     onChange={(e) => setContextComment(e.target.value)}

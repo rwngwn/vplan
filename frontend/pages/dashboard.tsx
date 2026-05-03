@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { useRouter } from 'next/router'
 import { useEffect, useMemo, useState } from 'react'
 import useSWR from 'swr'
 
@@ -8,6 +9,7 @@ import { t } from '../lib/i18n'
 const STATUSES: Task['status'][] = ['open', 'in_progress', 'review', 'blocked', 'done', 'cancelled']
 
 export default function Dashboard() {
+  const router = useRouter()
   const { data, isLoading } = useSWR('tasks', () => fetchTasks(), { refreshInterval: 4000 })
   const { data: notes, mutate: mutateNotes } = useSWR('notes', fetchNotes)
   const { data: telemetry } = useSWR('telemetry', getTelemetry, { refreshInterval: 3000 })
@@ -16,8 +18,14 @@ export default function Dashboard() {
   const [visibleMobileStatus, setVisibleMobileStatus] = useState<Task['status']>('open')
   const [newNoteTitle, setNewNoteTitle] = useState('')
   const [importState, setImportState] = useState('')
+  const selectedTaskId = typeof router.query.task === 'string' ? router.query.task : ''
+  const selectedTask = useMemo<Task | undefined>(() => (data || []).find((task) => task.id === selectedTaskId), [data, selectedTaskId])
 
   useEffect(() => { recordTaskDashboardView() }, [])
+
+  useEffect(() => {
+    if (selectedTask) setVisibleMobileStatus(selectedTask.status)
+  }, [selectedTask])
 
   const filtered = useMemo(() => {
     const items = data || []
@@ -46,6 +54,16 @@ export default function Dashboard() {
     } finally {
       setTimeout(() => setImportState(''), 3000)
     }
+  }
+
+  const openTaskDiagnostics = (task: Task) => {
+    setVisibleMobileStatus(task.status)
+    void router.push({ pathname: '/dashboard', query: { ...router.query, task: task.id } }, undefined, { shallow: true })
+  }
+
+  const closeTaskDiagnostics = () => {
+    const { task: _task, ...nextQuery } = router.query
+    void router.push({ pathname: '/dashboard', query: nextQuery }, undefined, { shallow: true })
   }
 
   return (
@@ -126,7 +144,7 @@ export default function Dashboard() {
                   <p className="app-text-faint text-[11px]">{task.source_type}</p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     <Link href={`/wiki/${task.source_ref || task.id}`} className="app-button-primary rounded px-2 py-1 text-xs">{t('dashboard.wikiReview')}</Link>
-                    <Link href={`/tasks/${task.id}`} className="app-button-secondary rounded px-2 py-1 text-xs">{t('dashboard.statusDetail')}</Link>
+                    <button type="button" onClick={() => openTaskDiagnostics(task)} className="app-button-secondary rounded px-2 py-1 text-xs">{t('dashboard.statusDetail')}</button>
                   </div>
                 </div>
               ))}
@@ -146,7 +164,7 @@ export default function Dashboard() {
                         <p className="app-text-faint text-[11px]">{task.source_type}</p>
                         <div className="mt-2 flex flex-wrap gap-2">
                           <Link href={`/wiki/${task.source_ref || task.id}`} className="app-button-primary rounded px-2 py-1 text-xs">{t('dashboard.wikiReview')}</Link>
-                          <Link href={`/tasks/${task.id}`} className="app-button-secondary rounded px-2 py-1 text-xs">{t('dashboard.statusDetail')}</Link>
+                          <button type="button" onClick={() => openTaskDiagnostics(task)} className="app-button-secondary rounded px-2 py-1 text-xs">{t('dashboard.statusDetail')}</button>
                         </div>
                       </div>
                     ))}
@@ -157,6 +175,72 @@ export default function Dashboard() {
           </div>
         </section>
       </div>
+      {selectedTaskId && (
+        <TaskDiagnosticsPanel
+          task={selectedTask}
+          taskId={selectedTaskId}
+          isLoading={isLoading}
+          onClose={closeTaskDiagnostics}
+        />
+      )}
     </main>
+  )
+}
+
+function TaskDiagnosticsPanel({ task, taskId, isLoading, onClose }: { task?: Task; taskId: string; isLoading: boolean; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 bg-black/55" role="presentation" onClick={onClose}>
+      <aside
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="task-diagnostics-title"
+        className="app-surface ml-auto flex h-full w-full flex-col overflow-y-auto border-y-0 border-r-0 p-4 shadow-2xl sm:max-w-md sm:p-5"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <h2 id="task-diagnostics-title" className="app-section-title">{t('tasks.statusDetailTitle')}</h2>
+            {task && <p className="app-text-faint mt-1 break-all text-xs">{task.id}</p>}
+          </div>
+          <button type="button" onClick={onClose} className="app-button-secondary min-h-11 rounded px-3 py-2 text-xs">
+            {t('editor.closePanel')}
+          </button>
+        </div>
+
+        {isLoading && <p className="app-text-faint mt-4">{t('dashboard.loading')}</p>}
+        {!isLoading && !task && <p className="mt-4 text-sm text-[var(--status-danger)]">{t('tasks.notFound', taskId)}</p>}
+        {task && (
+          <>
+            <p className="mt-4 text-base font-semibold">{task.title}</p>
+            <p className="app-text-muted mt-1 text-sm">{t('tasks.primaryWorkflow')}</p>
+
+            <dl className="mt-4 grid gap-3 text-sm">
+              <DiagnosticItem label={t('tasks.status')} value={t(`status.${task.status}`)} />
+              <DiagnosticItem label={t('tasks.source')} value={`${task.source_type} / ${task.source_ref || '-'}`} />
+              <DiagnosticItem label={t('tasks.owner')} value={task.owner || '-'} />
+              <DiagnosticItem label={t('tasks.priority')} value={String(task.priority)} />
+              <DiagnosticItem label={t('tasks.instruction')} value={task.instruction || '-'} />
+              <DiagnosticItem label={t('tasks.acceptance')} value={task.acceptance_criteria.join(' | ') || '-'} />
+              <DiagnosticItem label={t('tasks.resultSummary')} value={task.result_summary || '-'} />
+            </dl>
+
+            <div className="mt-5">
+              <Link href={`/wiki/${task.source_ref || task.id}`} className="app-button-primary inline-flex min-h-11 items-center rounded px-3 py-2 text-xs">
+                {t('tasks.openPrimaryWikiReview')}
+              </Link>
+            </div>
+          </>
+        )}
+      </aside>
+    </div>
+  )
+}
+
+function DiagnosticItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="app-muted-panel rounded p-3">
+      <dt className="app-kicker">{label}</dt>
+      <dd className="mt-1 break-words text-[var(--text-primary)]">{value}</dd>
+    </div>
   )
 }

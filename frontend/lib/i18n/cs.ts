@@ -67,11 +67,17 @@ export const cs = {
   'editor.linePrefix': 'řádek',
   'editor.detectedAgentInstructions': 'Rozpoznané instrukce pro agenta',
   'editor.inlineFeedbackQuote': (comment: string, quote: string) => `${comment} | citace: ${quote}`,
+  'editor.closePanel': 'Zavřít',
 
   'tabs.edit': 'Úpravy',
   'tabs.preview': 'Náhled',
   'tabs.diff': 'Rozdíl',
   'tabs.review': 'Recenze',
+
+  'mobilePanel.revisions': 'Revize',
+  'mobilePanel.annotations': 'Anotace',
+  'mobilePanel.notes': 'Poznámky',
+  'mobilePanel.review': 'Recenze',
 
   'review.approve': 'Schválit',
   'review.requestChanges': 'Požádat o úpravy',

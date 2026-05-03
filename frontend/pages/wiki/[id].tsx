@@ -84,6 +84,7 @@ export default function WikiNotePage() {
   const editorShellRef = useRef<HTMLDivElement | null>(null)
   const [selectionToolbar, setSelectionToolbar] = useState<{ x: number; y: number; quote: string } | null>(null)
   const [commentPopover, setCommentPopover] = useState<{ x: number; y: number; quote: string } | null>(null)
+  const [draftHighlightRects, setDraftHighlightRects] = useState<Array<{ left: number; top: number; width: number; height: number }>>([])
   const [contextComment, setContextComment] = useState('')
 
   const markdown = useMemo(() => td.turndown(html || ''), [html])
@@ -297,6 +298,14 @@ export default function WikiNotePage() {
                 />
               </EditorProvider>
 
+              {draftHighlightRects.map((rect, idx) => (
+                <div
+                  key={`draft-rect-${idx}`}
+                  className="pointer-events-none absolute rounded-[3px] bg-amber-300/35 ring-1 ring-amber-200/45"
+                  style={{ left: rect.left, top: rect.top, width: rect.width, height: rect.height }}
+                />
+              ))}
+
               {selectionToolbar && (
                 <div className="app-selection-toolbar" style={{ left: selectionToolbar.x, top: selectionToolbar.y }} onMouseDown={(e) => e.preventDefault()}>
                   <button
@@ -310,6 +319,23 @@ export default function WikiNotePage() {
                     type="button"
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => {
+                      const host = editorShellRef.current
+                      const selection = globalThis.getSelection?.()
+                      if (host && selection && selection.rangeCount > 0 && !selection.isCollapsed) {
+                        const range = selection.getRangeAt(0)
+                        const rects = Array.from(range.getClientRects())
+                          .filter((r) => r.width > 0 && r.height > 0)
+                          .map((r) => {
+                            const hostRect = host.getBoundingClientRect()
+                            return {
+                              left: r.left - hostRect.left,
+                              top: r.top - hostRect.top,
+                              width: r.width,
+                              height: r.height
+                            }
+                          })
+                        setDraftHighlightRects(rects)
+                      }
                       setCommentPopover({ x: selectionToolbar.x, y: selectionToolbar.y + 14, quote: selectionToolbar.quote })
                       setContextComment('')
                     }}
@@ -328,7 +354,7 @@ export default function WikiNotePage() {
                     onChange={(e) => setContextComment(e.target.value)}
                   />
                   <div className="mt-2 flex justify-end gap-2">
-                    <button className="app-button-secondary rounded px-2 py-1 text-xs" onClick={() => setCommentPopover(null)}>Cancel</button>
+                    <button className="app-button-secondary rounded px-2 py-1 text-xs" onClick={() => { setCommentPopover(null); setDraftHighlightRects([]) }}>Cancel</button>
                     <button
                       className="app-button-primary rounded px-2 py-1 text-xs"
                       onClick={() => {
@@ -337,6 +363,7 @@ export default function WikiNotePage() {
                         setCommentPopover(null)
                         setSelectionToolbar(null)
                         setContextComment('')
+                        setDraftHighlightRects([])
                       }}
                     >Save</button>
                   </div>

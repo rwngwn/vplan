@@ -86,6 +86,7 @@ export default function WikiNotePage() {
   const [commentPopover, setCommentPopover] = useState<{ x: number; y: number; quote: string } | null>(null)
   const [draftHighlightRects, setDraftHighlightRects] = useState<Array<{ left: number; top: number; width: number; height: number }>>([])
   const [contextComment, setContextComment] = useState('')
+  const [researchState, setResearchState] = useState<'idle' | 'running' | 'done' | 'error'>('idle')
 
   const markdown = useMemo(() => td.turndown(html || ''), [html])
 
@@ -211,6 +212,48 @@ export default function WikiNotePage() {
   const openAnnotations = useMemo(() => annotations.filter((a) => a.status === 'open'), [annotations])
   const resolvedAnnotations = useMemo(() => annotations.filter((a) => a.status === 'resolved'), [annotations])
   const visibleAnnotations = annotationTab === 'open' ? openAnnotations : resolvedAnnotations
+
+  const guessIntent = (text: string) => {
+    const lower = text.toLowerCase()
+    if (/dozkoumej|research|zjisti|ověř|fakt|zdroj/.test(lower)) return 'research'
+    if (/implement|udělej|build|kód|feature|fix/.test(lower)) return 'implementation'
+    if (/rizik|trade-?off|alternativ|protiargument/.test(lower)) return 'analysis'
+    return 'follow-up'
+  }
+
+  const onProcessOpenAnnotations = async () => {
+    if (openAnnotations.length === 0) return
+    try {
+      setResearchState('running')
+      const now = new Date().toISOString()
+      const lines = openAnnotations.map((a, idx) => {
+        const intent = guessIntent(`${a.body} ${a.quote}`)
+        return `## ${idx + 1}. ${intent.toUpperCase()}\n- komentář: ${a.body}\n- citace: "${a.quote}"\n- další krok: Připravit ověřené zdroje, shrnutí a doporučení.`
+      }).join('\n\n')
+
+      const brief = [
+        `# Research brief from annotations`,
+        `- source_note_id: ${noteId || 'unknown'}`,
+        `- source_note_title: ${title || 'Untitled.md'}`,
+        `- generated_at: ${now}`,
+        `- open_annotations: ${openAnnotations.length}`,
+        '',
+        '## Agent instructions',
+        'Pro každou položku proveď: (1) ověření tvrzení, (2) dohledání zdrojů, (3) stručné doporučení, (4) navazující akční kroky.',
+        '',
+        lines,
+        '',
+        '## Output format',
+        '- TL;DR\n- Evidence (zdroje + citace)\n- Co udělat dál (konkrétní tasky)'
+      ].join('\n')
+
+      const created = await createNote(`research-brief-${new Date().toISOString().slice(0, 10)}.md`, brief)
+      setResearchState('done')
+      await router.push(`/wiki/${created.id}`)
+    } catch {
+      setResearchState('error')
+    }
+  }
 
   return (
     <main className="app-page min-h-screen">
@@ -405,7 +448,17 @@ export default function WikiNotePage() {
             <div className="flex gap-2 border-b border-[var(--border-default)] px-3 py-2 text-xs">
               <button className={`rounded px-2 py-1 ${annotationTab === 'open' ? 'bg-[var(--bg-elevated)]' : ''}`} onClick={() => setAnnotationTab('open')}>Open ({openAnnotations.length})</button>
               <button className={`rounded px-2 py-1 ${annotationTab === 'resolved' ? 'bg-[var(--bg-elevated)]' : ''}`} onClick={() => setAnnotationTab('resolved')}>Resolved ({resolvedAnnotations.length})</button>
+              <button
+                className="ml-auto app-button-primary rounded px-2 py-1 text-[11px]"
+                disabled={researchState === 'running' || openAnnotations.length === 0}
+                onClick={onProcessOpenAnnotations}
+              >
+                {researchState === 'running' ? 'Processing…' : 'Process open annotations'}
+              </button>
             </div>
+            {researchState === 'error' && (
+              <div className="px-3 pt-2 text-[11px] text-rose-300">Nepodařilo se vytvořit research brief.</div>
+            )}
             <div className="space-y-2 overflow-auto p-3">
               {visibleAnnotations.length === 0 ? (
                 <div className="app-text-muted rounded-lg border border-[var(--border-default)] p-3 text-xs">Select text and add comment to create annotation.</div>

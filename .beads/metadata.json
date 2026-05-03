@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "ACAPP",
+  "project_id": "cbd472c0-ff00-42ae-9d4c-280e5ec46e17"
+}

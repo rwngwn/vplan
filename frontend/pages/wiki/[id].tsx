@@ -41,6 +41,7 @@ export default function WikiNotePage() {
   const [newSidebarNoteTitle, setNewSidebarNoteTitle] = useState('')
   const [annotationComment, setAnnotationComment] = useState('')
   const [annotationTab, setAnnotationTab] = useState<'open' | 'resolved'>('open')
+  const [resolvedAnnotationIds, setResolvedAnnotationIds] = useState<string[]>([])
   const editorShellRef = useRef<HTMLDivElement | null>(null)
   const [selectionToolbar, setSelectionToolbar] = useState<{ x: number; y: number; quote: string } | null>(null)
   const [commentPopover, setCommentPopover] = useState<{ x: number; y: number; quote: string } | null>(null)
@@ -86,8 +87,9 @@ export default function WikiNotePage() {
     }
   }
 
+  const planNotes = useMemo(() => (notes || []).filter((n) => /(plan|rfc|telemetry)/i.test(n.title)), [notes])
   const hnNotes = useMemo(() => (notes || []).filter((n) => n.title.toLowerCase().includes('hn')), [notes])
-  const otherNotes = useMemo(() => (notes || []).filter((n) => !n.title.toLowerCase().includes('hn')), [notes])
+  const otherNotes = useMemo(() => (notes || []).filter((n) => !n.title.toLowerCase().includes('hn') && !/(plan|rfc|telemetry)/i.test(n.title)), [notes])
 
   const onCreateSidebarNote = async () => {
     const baseTitle = newSidebarNoteTitle.trim() || t('wiki.newMdDefaultTitle')
@@ -103,10 +105,11 @@ export default function WikiNotePage() {
       id: `anno-${i + 1}`,
       body: m[1]?.trim() || '',
       quote: m[2]?.trim() || '',
-      status: 'open' as const,
-      when: 'now'
+      status: resolvedAnnotationIds.includes(`anno-${i + 1}`) ? ('resolved' as const) : ('open' as const),
+      when: 'now',
+      author: 'You'
     }))
-  }, [markdown])
+  }, [markdown, resolvedAnnotationIds])
 
   const appendAnnotation = (quoteText: string, commentText: string) => {
     const safeQuote = quoteText.replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -163,6 +166,10 @@ export default function WikiNotePage() {
     }
   }, [])
 
+  const openAnnotations = useMemo(() => annotations.filter((a) => a.status === 'open'), [annotations])
+  const resolvedAnnotations = useMemo(() => annotations.filter((a) => a.status === 'resolved'), [annotations])
+  const visibleAnnotations = annotationTab === 'open' ? openAnnotations : resolvedAnnotations
+
   return (
     <main className="app-page min-h-screen">
       <div className={`mx-auto grid w-full max-w-[1480px] grid-cols-1 gap-4 px-3 py-4 lg:px-4 ${showPanel ? 'lg:grid-cols-[268px_1fr_340px]' : 'lg:grid-cols-[268px_1fr]'}`}>
@@ -174,7 +181,16 @@ export default function WikiNotePage() {
           </div>
 
           <div className="space-y-1">
-            <div className="app-kicker mb-1">HN folder</div>
+            <div className="app-kicker mb-1 flex items-center">PLANS & RFCS <span className="ml-auto text-[11px]">{planNotes.length}</span></div>
+            {planNotes.map((n) => (
+              <Link key={n.id} href={`/wiki/${n.id}`} className={`app-file-row ${n.id === noteId ? 'is-active' : ''}`}>
+                <span className="truncate">{n.title}</span>
+              </Link>
+            ))}
+          </div>
+
+          <div className="mt-4 max-h-[28vh] space-y-1 overflow-auto">
+            <div className="app-kicker mb-1 flex items-center">HN FOLDER <span className="ml-auto text-[11px]">{hnNotes.length}</span></div>
             {hnNotes.map((n) => (
               <Link key={n.id} href={`/wiki/${n.id}`} className={`app-file-row ${n.id === noteId ? 'is-active' : ''}`}>
                 <span className="truncate">{n.title}</span>
@@ -182,8 +198,8 @@ export default function WikiNotePage() {
             ))}
           </div>
 
-          <div className="mt-4 max-h-[40vh] space-y-1 overflow-auto">
-            <div className="app-kicker mb-1">{t('wiki.otherFiles')}</div>
+          <div className="mt-4 max-h-[22vh] space-y-1 overflow-auto">
+            <div className="app-kicker mb-1 flex items-center">OSTATNÍ SOUBORY <span className="ml-auto text-[11px]">{otherNotes.length}</span></div>
             {otherNotes.map((n) => (
               <Link key={n.id} href={`/wiki/${n.id}`} className={`app-file-row ${n.id === noteId ? 'is-active' : ''}`}>
                 <span className="truncate">{n.title}</span>
@@ -303,22 +319,34 @@ export default function WikiNotePage() {
           <aside className="app-surface h-[calc(100vh-2rem)] overflow-hidden rounded-xl">
             <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-3">
               <b className="text-sm">Annotations</b>
-              <span className="rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-xs">{annotations.length}</span>
+              <span className="rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-xs">{openAnnotations.length}</span>
               <button className="ml-auto app-button-secondary rounded px-2 py-1 text-xs" onClick={() => setShowPanel(false)}>✕</button>
             </div>
             <div className="flex gap-2 border-b border-[var(--border-default)] px-3 py-2 text-xs">
-              <button className={`rounded px-2 py-1 ${annotationTab === 'open' ? 'bg-[var(--bg-elevated)]' : ''}`} onClick={() => setAnnotationTab('open')}>Open ({annotations.length})</button>
-              <button className={`rounded px-2 py-1 ${annotationTab === 'resolved' ? 'bg-[var(--bg-elevated)]' : ''}`} onClick={() => setAnnotationTab('resolved')}>Resolved (0)</button>
+              <button className={`rounded px-2 py-1 ${annotationTab === 'open' ? 'bg-[var(--bg-elevated)]' : ''}`} onClick={() => setAnnotationTab('open')}>Open ({openAnnotations.length})</button>
+              <button className={`rounded px-2 py-1 ${annotationTab === 'resolved' ? 'bg-[var(--bg-elevated)]' : ''}`} onClick={() => setAnnotationTab('resolved')}>Resolved ({resolvedAnnotations.length})</button>
             </div>
             <div className="space-y-2 overflow-auto p-3">
-              {annotations.length === 0 ? (
+              {visibleAnnotations.length === 0 ? (
                 <div className="app-text-muted rounded-lg border border-[var(--border-default)] p-3 text-xs">Select text and add comment to create annotation.</div>
               ) : (
-                annotations.map((a) => (
+                visibleAnnotations.map((a) => (
                   <div key={a.id} className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-muted)] p-3">
-                    <div className="mb-1 text-[11px] app-text-faint">{a.when}</div>
+                    <div className="mb-1 flex items-center gap-2 text-[11px] app-text-faint">
+                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[10px] text-white">YU</span>
+                      <span className="font-semibold text-[var(--text-primary)]">{a.author}</span>
+                      <span className="ml-auto">{a.when}</span>
+                    </div>
                     <div className="mb-2 rounded bg-[rgba(246,200,77,0.22)] px-2 py-1 text-xs">{a.quote}</div>
                     <p className="text-sm leading-5">{a.body}</p>
+                    {a.status === 'open' && (
+                      <div className="mt-2 flex justify-end">
+                        <button
+                          className="app-button-secondary rounded px-2 py-1 text-[11px]"
+                          onClick={() => setResolvedAnnotationIds((prev) => prev.includes(a.id) ? prev : [...prev, a.id])}
+                        >resolve</button>
+                      </div>
+                    )}
                   </div>
                 ))
               )}

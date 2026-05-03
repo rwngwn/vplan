@@ -41,6 +41,13 @@ export const cs = {
   'wiki.requestChanges': 'Požádat o úpravy',
   'wiki.approve': 'Schválit',
   'wiki.approvedSummary': 'Schváleno ve wiki recenzi',
+  'wiki.otherFiles': 'Ostatní soubory',
+  'wiki.newMdPlaceholder': 'novy-soubor.md',
+  'wiki.newMdDefaultTitle': 'nova-poznamka',
+  'wiki.createMd': 'Vytvořit .md',
+  'wiki.annotateSelection': 'Anotace výběru',
+  'wiki.annotationCommentPlaceholder': 'Komentář k označenému textu',
+  'wiki.addAnnotationFromSelection': 'Přidat anotaci z výběru',
 
   'editor.workspace': 'Pracovní prostor',
   'editor.currentDocument': 'Aktuální dokument',

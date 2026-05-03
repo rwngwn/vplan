@@ -28,7 +28,7 @@ export default function Home() {
   }, [isLoading, notes, router])
 
   return (
-    <main className="min-h-screen grid place-items-center bg-[#11111a] text-slate-300">
+    <main className="app-page grid min-h-screen place-items-center">
       <p className="text-sm">{t('app.loadingWorkspace')}</p>
     </main>
   )

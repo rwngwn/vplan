@@ -129,24 +129,24 @@ export default function EditorPage() {
 
   const workspacePanel = (
     <>
-      <div className="mb-3 text-xs uppercase text-slate-400">{t('editor.workspace')}</div>
+      <div className="app-kicker mb-3">{t('editor.workspace')}</div>
       <div className="mb-3 flex items-center gap-2 text-xs">
-        <Link href="/dashboard" className="min-h-11 py-3 text-slate-300 hover:text-white lg:min-h-0 lg:py-0">← {t('nav.dashboard')}</Link>
-        <span className="text-slate-500">·</span>
-        <Link href={`/tasks/${taskId}`} className="min-h-11 py-3 text-slate-300 hover:text-white lg:min-h-0 lg:py-0">{t('nav.task')}</Link>
+        <Link href="/dashboard" className="app-link-muted min-h-11 py-3 lg:min-h-0 lg:py-0">← {t('nav.dashboard')}</Link>
+        <span className="app-text-faint">·</span>
+        <Link href={`/tasks/${taskId}`} className="app-link-muted min-h-11 py-3 lg:min-h-0 lg:py-0">{t('nav.task')}</Link>
       </div>
 
-      <div className="mb-4 rounded border border-[#2a2b33] bg-[#12131b] p-2">
-        <p className="text-xs text-slate-400">{t('editor.currentDocument')}</p>
+      <div className="app-muted-panel mb-4 rounded p-2">
+        <p className="app-text-muted text-xs">{t('editor.currentDocument')}</p>
         <p className="mt-1 text-sm font-medium">{task?.title || t('editor.defaultTaskNote')}</p>
-        <p className="text-[11px] text-slate-500">{taskId}</p>
+        <p className="app-text-faint text-[11px]">{taskId}</p>
       </div>
     </>
   )
 
   const revisionsPanel = (
     <div className="mb-4">
-      <p className="mb-2 text-xs uppercase text-slate-400">{t('editor.revisions')}</p>
+      <p className="app-kicker mb-2">{t('editor.revisions')}</p>
       <div className="max-h-64 space-y-1 overflow-auto lg:max-h-44">
         {(revisions || []).map((r) => (
           <button
@@ -155,10 +155,10 @@ export default function EditorPage() {
               setSelectedRevisionId(r.revision_id)
               setMobilePanel(null)
             }}
-            className={`min-h-11 w-full rounded border px-2 py-2 text-left text-xs lg:min-h-0 lg:py-1 ${selectedRevisionId === r.revision_id ? 'border-[#6b6dff] bg-[#20233a]' : 'border-[#2a2b33] bg-[#12131b]'}`}
+            className={`min-h-11 w-full rounded border px-2 py-2 text-left text-xs lg:min-h-0 lg:py-1 ${selectedRevisionId === r.revision_id ? 'border-[var(--accent-hover)] bg-[var(--bg-elevated)]' : 'border-[var(--border-default)] bg-[var(--bg-muted)]'}`}
           >
             <div className="font-mono">{r.revision_id}</div>
-            <div className="text-slate-500">{reviewDecisionLabel(r.review_decision)}</div>
+            <div className="app-text-faint">{reviewDecisionLabel(r.review_decision)}</div>
           </button>
         ))}
       </div>
@@ -167,14 +167,14 @@ export default function EditorPage() {
 
   const notesPanel = (
     <div>
-      <p className="mb-2 text-xs uppercase text-slate-400">{t('editor.knowledgeNotes')}</p>
+      <p className="app-kicker mb-2">{t('editor.knowledgeNotes')}</p>
       <div className="mb-2 flex gap-1">
-        <input value={newNoteTitle} onChange={(e) => setNewNoteTitle(e.target.value)} placeholder={t('editor.newNotePlaceholder')} className="min-h-11 w-full rounded border border-[#2a2b33] bg-[#12131b] px-2 py-2 text-xs lg:min-h-0 lg:py-1" />
-        <button onClick={onCreateNote} className="min-h-11 min-w-11 rounded bg-[#2a2f55] px-2 text-xs lg:min-h-0 lg:min-w-0">+</button>
+        <input value={newNoteTitle} onChange={(e) => setNewNoteTitle(e.target.value)} placeholder={t('editor.newNotePlaceholder')} className="app-field min-h-11 w-full rounded px-2 py-2 text-xs lg:min-h-0 lg:py-1" />
+        <button onClick={onCreateNote} className="app-button-secondary min-h-11 min-w-11 rounded px-2 text-xs lg:min-h-0 lg:min-w-0">+</button>
       </div>
       <div className="max-h-64 space-y-1 overflow-auto lg:max-h-48">
         {(notes || []).map((n) => (
-          <Link key={n.id} href={`/wiki/${n.id}`} className="block min-h-11 rounded border border-[#2a2b33] bg-[#12131b] px-2 py-3 text-xs hover:bg-[#1a1c28] lg:min-h-0 lg:py-1">
+          <Link key={n.id} href={`/wiki/${n.id}`} className="app-muted-panel block min-h-11 rounded px-2 py-3 text-xs hover:bg-[var(--bg-elevated)] lg:min-h-0 lg:py-1">
             <div className="truncate">{n.title}</div>
           </Link>
         ))}
@@ -183,26 +183,26 @@ export default function EditorPage() {
   )
 
   const reviewControlsPanel = (
-    <div className="rounded border border-[#2a2b33] bg-[#0f1017] p-3">
+    <div className="app-field rounded p-3">
       <div className="mb-2 flex gap-2">
-        <button onClick={() => setReviewDecision('approve')} className={`min-h-11 rounded px-3 py-2 text-xs lg:min-h-0 lg:px-2 lg:py-1 ${reviewDecision === 'approve' ? 'bg-emerald-600' : 'bg-[#1f2230]'}`}>{t('review.approve')}</button>
-        <button onClick={() => setReviewDecision('request_changes')} className={`min-h-11 rounded px-3 py-2 text-xs lg:min-h-0 lg:px-2 lg:py-1 ${reviewDecision === 'request_changes' ? 'bg-amber-600' : 'bg-[#1f2230]'}`}>{t('review.requestChanges')}</button>
+        <button onClick={() => setReviewDecision('approve')} className={`min-h-11 rounded px-3 py-2 text-xs lg:min-h-0 lg:px-2 lg:py-1 ${reviewDecision === 'approve' ? 'bg-[var(--status-success)]' : 'app-button-secondary'}`}>{t('review.approve')}</button>
+        <button onClick={() => setReviewDecision('request_changes')} className={`min-h-11 rounded px-3 py-2 text-xs lg:min-h-0 lg:px-2 lg:py-1 ${reviewDecision === 'request_changes' ? 'bg-[var(--status-warning)]' : 'app-button-secondary'}`}>{t('review.requestChanges')}</button>
       </div>
-      <textarea value={reviewSummary} onChange={(e) => setReviewSummary(e.target.value)} className="min-h-24 w-full rounded border border-[#2a2b33] bg-[#11131d] p-2 text-sm lg:min-h-20" placeholder={t('editor.reviewSummaryPlaceholder')} />
-      <button onClick={onSubmitReview} className="mt-2 min-h-11 rounded bg-[#6366f1] px-3 py-2 text-xs lg:min-h-0 lg:py-1">{t('editor.submitReview')}</button>
-      <pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap rounded border border-[#2a2b33] bg-[#11131d] p-2 text-xs text-slate-300 lg:max-h-none">{feedbackPacket || t('editor.feedbackPacketEmpty')}</pre>
+      <textarea value={reviewSummary} onChange={(e) => setReviewSummary(e.target.value)} className="app-field min-h-24 w-full rounded p-2 text-sm lg:min-h-20" placeholder={t('editor.reviewSummaryPlaceholder')} />
+      <button onClick={onSubmitReview} className="app-button-primary mt-2 min-h-11 rounded px-3 py-2 text-xs lg:min-h-0 lg:py-1">{t('editor.submitReview')}</button>
+      <pre className="app-field mt-3 max-h-48 overflow-auto whitespace-pre-wrap rounded p-2 text-xs text-[var(--text-secondary)] lg:max-h-none">{feedbackPacket || t('editor.feedbackPacketEmpty')}</pre>
     </div>
   )
 
   const annotationsPanel = (
     <>
-      <div className="mb-2 text-xs uppercase text-slate-400">{t('editor.annotations')}</div>
-      <p className="mb-2 text-xs text-slate-500">{t('editor.annotationInstructions')}</p>
+      <div className="app-kicker mb-2">{t('editor.annotations')}</div>
+      <p className="app-text-faint mb-2 text-xs">{t('editor.annotationInstructions')}</p>
 
       <textarea
         value={selectionComment}
         onChange={(e) => setSelectionComment(e.target.value)}
-        className="min-h-24 w-full rounded border border-[#2a2b33] bg-[#12131b] p-2 text-xs lg:min-h-20"
+        className="app-field min-h-24 w-full rounded p-2 text-xs lg:min-h-20"
         placeholder={t('editor.selectionCommentPlaceholder')}
       />
 
@@ -210,27 +210,27 @@ export default function EditorPage() {
         onClick={() => {
           if (editorRef.current) onCaptureSelection(editorRef.current)
         }}
-        className="mt-2 min-h-11 w-full rounded bg-[#2a2f55] px-3 py-2 text-xs lg:min-h-0 lg:py-1.5"
+        className="app-button-secondary mt-2 min-h-11 w-full rounded px-3 py-2 text-xs lg:min-h-0 lg:py-1.5"
       >
         {t('editor.addFromSelection')}
       </button>
 
       <div className="mt-3 max-h-52 space-y-2 overflow-auto lg:max-h-none">
-        {reviewAnnotations.length === 0 && <p className="text-xs text-slate-500">{t('editor.noReviewAnnotations')}</p>}
+        {reviewAnnotations.length === 0 && <p className="app-text-faint text-xs">{t('editor.noReviewAnnotations')}</p>}
         {reviewAnnotations.map((a) => (
-          <div key={a.id} className="rounded border border-[#2a2b33] bg-[#12131b] p-2">
-            <div className="text-[11px] text-amber-300">{t('editor.linePrefix')} {a.line_no}</div>
-            <div className="mt-1 text-xs text-slate-300">“{a.quote.slice(0, 120)}”</div>
+          <div key={a.id} className="app-muted-panel rounded p-2">
+            <div className="text-[11px] text-[var(--status-warning)]">{t('editor.linePrefix')} {a.line_no}</div>
+            <div className="mt-1 text-xs text-[var(--text-secondary)]">“{a.quote.slice(0, 120)}”</div>
             <div className="mt-1 text-xs">{a.comment}</div>
           </div>
         ))}
       </div>
 
       <div className="mt-4">
-        <div className="mb-1 text-xs uppercase text-slate-400">{t('editor.detectedAgentInstructions')}</div>
+        <div className="app-kicker mb-1">{t('editor.detectedAgentInstructions')}</div>
         <div className="max-h-40 space-y-1 overflow-auto">
           {annotationsDetected.map((a, i) => (
-            <div key={`${a.line_no}-${i}`} className="rounded bg-[#12131b] p-2 text-xs">{t('editor.linePrefix')} {a.line_no}: {a.instruction}</div>
+            <div key={`${a.line_no}-${i}`} className="rounded bg-[var(--bg-muted)] p-2 text-xs">{t('editor.linePrefix')} {a.line_no}: {a.instruction}</div>
           ))}
         </div>
       </div>
@@ -238,32 +238,32 @@ export default function EditorPage() {
   )
 
   return (
-    <main className="h-[100dvh] overflow-hidden bg-[#11111a] text-[#e8e8ef]">
+    <main className="app-page h-[100dvh] overflow-hidden">
       <div className="grid h-full min-h-0 grid-cols-1 lg:grid-cols-[260px_1fr_340px]">
-        <aside className="hidden border-r border-[#2a2b33] bg-[#171821] p-3 lg:block">
+        <aside className="hidden border-r border-[var(--border-default)] bg-[var(--bg-surface)] p-3 lg:block">
           {workspacePanel}
           {revisionsPanel}
           {notesPanel}
         </aside>
 
         <section className="flex min-h-0 min-w-0 flex-col">
-          <header className="border-b border-[#2a2b33] bg-[#141520] px-3 py-2">
+          <header className="border-b border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2">
             <div className="mb-2 min-w-0 lg:hidden">
               <div className="truncate text-sm font-medium">{task?.title || t('editor.defaultTaskNote')}</div>
-              <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
-                <Link href="/dashboard" className="min-h-11 py-3 text-slate-300">{t('nav.dashboard')}</Link>
+              <div className="app-text-faint mt-1 flex items-center gap-2 text-xs">
+                <Link href="/dashboard" className="app-link-muted min-h-11 py-3">{t('nav.dashboard')}</Link>
                 <span>·</span>
-                <Link href={`/tasks/${taskId}`} className="min-h-11 py-3 text-slate-300">{t('nav.task')}</Link>
+                <Link href={`/tasks/${taskId}`} className="app-link-muted min-h-11 py-3">{t('nav.task')}</Link>
               </div>
             </div>
             <div className="flex items-center gap-2 overflow-x-auto">
               {TABS.map((tabId) => (
-                <button key={tabId} onClick={() => setTab(tabId)} className={`min-h-11 shrink-0 rounded px-3 py-2 text-xs lg:min-h-0 lg:px-2 lg:py-1 ${tab === tabId ? 'bg-[#6366f1] text-white' : 'bg-[#1f2230] text-slate-300'}`}>
+                <button key={tabId} onClick={() => setTab(tabId)} className={`min-h-11 shrink-0 rounded px-3 py-2 text-xs lg:min-h-0 lg:px-2 lg:py-1 ${tab === tabId ? 'app-button-primary' : 'app-button-secondary'}`}>
                   {t(`tabs.${tabId}`)}
                 </button>
               ))}
-              <button onClick={onSave} className="ml-auto min-h-11 shrink-0 rounded bg-[#6366f1] px-3 py-2 text-xs text-white lg:min-h-0 lg:py-1">{t('editor.save')}</button>
-              <span className="shrink-0 text-xs text-slate-500">{saveState}</span>
+              <button onClick={onSave} className="app-button-primary ml-auto min-h-11 shrink-0 rounded px-3 py-2 text-xs lg:min-h-0 lg:py-1">{t('editor.save')}</button>
+              <span className="app-text-faint shrink-0 text-xs">{saveState}</span>
             </div>
           </header>
 
@@ -273,7 +273,7 @@ export default function EditorPage() {
                 ref={editorRef}
                 value={markdown}
                 onChange={(e) => setMarkdown(e.target.value)}
-                className="h-full w-full resize-none rounded border border-[#2a2b33] bg-[#0f1017] p-4 font-mono text-sm leading-6 text-slate-100"
+                className="app-field h-full w-full resize-none rounded p-4 font-mono text-sm leading-6"
                 placeholder={t('editor.markdownPlaceholder')}
               />
             </div>
@@ -288,10 +288,10 @@ export default function EditorPage() {
           {tab === 'diff' && (
             <div className="min-h-0 flex-1 p-3 pb-20 lg:pb-3">
               <div className="mb-2 flex gap-2">
-                <button onClick={onLoadDiff} className="min-h-11 rounded bg-[#1f2230] px-3 py-2 text-xs lg:min-h-0 lg:py-1">{t('editor.loadDiff')}</button>
-                <span className="text-xs text-slate-500">{t('editor.revisionPrefix')} {selectedRevisionId || '-'}</span>
+                <button onClick={onLoadDiff} className="app-button-secondary min-h-11 rounded px-3 py-2 text-xs lg:min-h-0 lg:py-1">{t('editor.loadDiff')}</button>
+                <span className="app-text-faint text-xs">{t('editor.revisionPrefix')} {selectedRevisionId || '-'}</span>
               </div>
-              <pre className="h-[calc(100%-36px)] overflow-auto rounded border border-[#2a2b33] bg-[#0f1017] p-3 text-xs">{diff || t('editor.selectRevisionForDiff')}</pre>
+              <pre className="app-field h-[calc(100%-36px)] overflow-auto rounded p-3 text-xs">{diff || t('editor.selectRevisionForDiff')}</pre>
             </div>
           )}
 
@@ -301,12 +301,12 @@ export default function EditorPage() {
             </div>
           )}
 
-          <nav className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-4 border-t border-[#2a2b33] bg-[#171821] lg:hidden">
+          <nav className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-4 border-t border-[var(--border-default)] bg-[var(--bg-surface)] lg:hidden">
             {MOBILE_PANELS.map((panelId) => (
               <button
                 key={panelId}
                 onClick={() => setMobilePanel((current) => (current === panelId ? null : panelId))}
-                className={`min-h-14 px-2 py-2 text-xs ${mobilePanel === panelId ? 'bg-[#252846] text-white' : 'text-slate-300'}`}
+                className={`min-h-14 px-2 py-2 text-xs ${mobilePanel === panelId ? 'app-button-primary' : 'text-[var(--text-secondary)]'}`}
               >
                 {t(`mobilePanel.${panelId}`)}
               </button>
@@ -314,17 +314,17 @@ export default function EditorPage() {
           </nav>
         </section>
 
-        <aside className="hidden border-l border-[#2a2b33] bg-[#171821] p-3 lg:block">
+        <aside className="hidden border-l border-[var(--border-default)] bg-[var(--bg-surface)] p-3 lg:block">
           {annotationsPanel}
         </aside>
       </div>
 
       {mobilePanel && (
         <div className="fixed inset-0 z-30 bg-black/40 lg:hidden" onClick={() => setMobilePanel(null)}>
-          <section className="absolute inset-x-0 bottom-0 max-h-[72dvh] overflow-auto rounded-t border-t border-[#2a2b33] bg-[#171821] p-3 pb-6" onClick={(e) => e.stopPropagation()}>
+          <section className="absolute inset-x-0 bottom-0 max-h-[72dvh] overflow-auto rounded-t border-t border-[var(--border-default)] bg-[var(--bg-surface)] p-3 pb-6" onClick={(e) => e.stopPropagation()}>
             <div className="mb-3 flex items-center justify-between gap-3">
-              <h2 className="text-xs uppercase text-slate-400">{t(`mobilePanel.${mobilePanel}`)}</h2>
-              <button onClick={() => setMobilePanel(null)} className="min-h-11 rounded bg-[#1f2230] px-3 py-2 text-xs">{t('editor.closePanel')}</button>
+              <h2 className="app-kicker">{t(`mobilePanel.${mobilePanel}`)}</h2>
+              <button onClick={() => setMobilePanel(null)} className="app-button-secondary min-h-11 rounded px-3 py-2 text-xs">{t('editor.closePanel')}</button>
             </div>
             {mobilePanel === 'revisions' && revisionsPanel}
             {mobilePanel === 'annotations' && annotationsPanel}

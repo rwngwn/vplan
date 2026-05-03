@@ -101,22 +101,22 @@ export default function WikiNotePage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#11111a] text-[#e8e8ef]">
+    <main className="app-page min-h-screen">
       <div className="mx-auto max-w-5xl p-2 md:p-4">
-        <div className="mb-2 flex items-center gap-2 text-xs text-slate-400">
+        <div className="app-text-muted mb-2 flex items-center gap-2 text-xs">
           <span>{t('wiki.breadcrumbWorkspace')}</span>
           <span>·</span>
-          <Link href="/dashboard" className="hover:text-white">{t('wiki.breadcrumbTelemetry')}</Link>
-          <button onClick={() => setShowPanel((v) => !v)} className="ml-auto rounded bg-[#1f2230] px-2 py-1 text-xs">{t('wiki.reviewPanel')}</button>
+          <Link href="/dashboard" className="app-link-muted">{t('wiki.breadcrumbTelemetry')}</Link>
+          <button onClick={() => setShowPanel((v) => !v)} className="app-button-secondary ml-auto rounded px-2 py-1 text-xs">{t('wiki.reviewPanel')}</button>
         </div>
 
         <input
           value={title}
           onChange={(e) => { setTitle(e.target.value); setIsDirty(true) }}
-          className="w-full rounded border border-[#2a2b33] bg-[#0f1017] px-3 py-2 text-base md:text-lg font-semibold"
+          className="app-field w-full rounded px-3 py-2 text-base font-semibold md:text-lg"
         />
 
-        <div className="mt-2 rounded border border-[#2a2b33] bg-[#0f1017] overflow-hidden">
+        <div className="app-field mt-2 overflow-hidden rounded">
           <EditorProvider>
             <Toolbar>
               <BtnUndo />
@@ -139,22 +139,22 @@ export default function WikiNotePage() {
         </div>
 
         <div className="mt-2 flex items-center gap-2">
-          <button onClick={onSave} className="rounded bg-[#6366f1] px-3 py-1.5 text-xs text-white">{t('wiki.save')}</button>
-          <span className="text-xs text-slate-500">{saveState}</span>
-          <span className="ml-auto text-[11px] text-slate-500">{t('wiki.markdownBackground')}</span>
+          <button onClick={onSave} className="app-button-primary rounded px-3 py-1.5 text-xs">{t('wiki.save')}</button>
+          <span className="app-text-faint text-xs">{saveState}</span>
+          <span className="app-text-faint ml-auto text-[11px]">{t('wiki.markdownBackground')}</span>
         </div>
 
         {showPanel && (
-          <div className="mt-3 rounded border border-[#2a2b33] bg-[#12131b] p-3">
-            <h3 className="text-xs uppercase text-slate-400">{t('wiki.reviewActions')}</h3>
-            <select value={selectedTask} onChange={(e) => setSelectedTask(e.target.value)} className="mt-2 w-full rounded border border-[#2a2b33] bg-[#0f1017] px-2 py-2 text-xs">
+          <div className="app-muted-panel mt-3 rounded p-3">
+            <h3 className="app-kicker">{t('wiki.reviewActions')}</h3>
+            <select value={selectedTask} onChange={(e) => setSelectedTask(e.target.value)} className="app-field mt-2 w-full rounded px-2 py-2 text-xs">
               <option value="">{t('wiki.selectLinkedTask')}</option>
               {(tasks || []).map((task) => <option key={task.id} value={task.id}>{task.title} [{t(`status.${task.status}`)}]</option>)}
             </select>
-            <textarea value={reviewSummary} onChange={(e) => setReviewSummary(e.target.value)} className="mt-2 min-h-24 w-full rounded border border-[#2a2b33] bg-[#0f1017] p-2 text-xs" placeholder={t('wiki.reviewSummary')} />
+            <textarea value={reviewSummary} onChange={(e) => setReviewSummary(e.target.value)} className="app-field mt-2 min-h-24 w-full rounded p-2 text-xs" placeholder={t('wiki.reviewSummary')} />
             <div className="mt-2 flex gap-2">
-              <button onClick={() => onSubmitReview('request_changes')} className="rounded bg-amber-600 px-2 py-1 text-xs">{t('wiki.requestChanges')}</button>
-              <button onClick={() => onSubmitReview('approve')} className="rounded bg-emerald-600 px-2 py-1 text-xs">{t('wiki.approve')}</button>
+              <button onClick={() => onSubmitReview('request_changes')} className="rounded bg-[var(--status-warning)] px-2 py-1 text-xs">{t('wiki.requestChanges')}</button>
+              <button onClick={() => onSubmitReview('approve')} className="rounded bg-[var(--status-success)] px-2 py-1 text-xs">{t('wiki.approve')}</button>
             </div>
           </div>
         )}

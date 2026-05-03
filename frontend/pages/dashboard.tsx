@@ -48,59 +48,59 @@ export default function Dashboard() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 p-3 md:p-6">
+    <main className="app-page min-h-screen p-3 md:p-6">
       <div className="mx-auto max-w-6xl space-y-4">
-        <h1 className="text-xl font-bold md:text-2xl">{t('dashboard.title')}</h1>
+        <h1 className="app-title">{t('dashboard.title')}</h1>
 
-        <section className="rounded-xl bg-white p-4 shadow-sm">
-          <h2 className="text-sm font-semibold">{t('dashboard.wikiSection')}</h2>
+        <section className="app-surface rounded-lg p-4">
+          <h2 className="app-section-title">{t('dashboard.wikiSection')}</h2>
           <div className="mt-2 grid gap-2 md:grid-cols-[1fr_auto_auto]">
-            <input value={newNoteTitle} onChange={(e) => setNewNoteTitle(e.target.value)} placeholder={t('dashboard.newNotePlaceholder')} className="rounded border px-3 py-2" />
-            <button onClick={onCreateNote} className="rounded bg-slate-900 px-4 py-2 text-white">{t('dashboard.createNote')}</button>
-            <button onClick={onImportHn} className="rounded bg-indigo-600 px-4 py-2 text-white">{t('dashboard.importHn')}</button>
+            <input value={newNoteTitle} onChange={(e) => setNewNoteTitle(e.target.value)} placeholder={t('dashboard.newNotePlaceholder')} className="app-field rounded px-3 py-2" />
+            <button onClick={onCreateNote} className="app-button-secondary rounded px-4 py-2">{t('dashboard.createNote')}</button>
+            <button onClick={onImportHn} className="app-button-primary rounded px-4 py-2">{t('dashboard.importHn')}</button>
           </div>
-          {importState && <p className="mt-2 text-xs text-slate-600">{importState}</p>}
+          {importState && <p className="app-text-muted mt-2 text-xs">{importState}</p>}
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             {(notes || []).map((n) => (
-              <Link key={n.id} href={`/wiki/${n.id}`} className="rounded border bg-slate-50 p-2 hover:bg-slate-100">
+              <Link key={n.id} href={`/wiki/${n.id}`} className="app-muted-panel block rounded p-2 hover:bg-[var(--bg-elevated)]">
                 <p className="text-sm font-medium">{n.title}</p>
-                <p className="text-[11px] text-slate-500">{n.id}</p>
+                <p className="app-text-faint text-[11px]">{n.id}</p>
               </Link>
             ))}
           </div>
         </section>
 
-        <section className="rounded-xl bg-white p-4 shadow-sm">
-          <h2 className="text-sm font-semibold">{t('dashboard.taskTelemetry')}</h2>
+        <section className="app-surface rounded-lg p-4">
+          <h2 className="app-section-title">{t('dashboard.taskTelemetry')}</h2>
           <div className="mt-2 flex gap-2">
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('dashboard.searchTasks')} className="w-full rounded border px-3 py-2" />
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="rounded border px-3 py-2 text-sm">
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('dashboard.searchTasks')} className="app-field w-full rounded px-3 py-2" />
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="app-field rounded px-3 py-2 text-sm">
               <option value="">{t('dashboard.allStatuses')}</option>
               {STATUSES.map((s) => <option key={s} value={s}>{t(`status.${s}`)}</option>)}
             </select>
           </div>
 
-          <div className="mt-3 flex gap-2 text-xs text-slate-600">
-            <span className="rounded bg-slate-100 px-2 py-1">{t('dashboard.metricTelegramToTask')}: {telemetry?.telegram_to_task_success ?? 0}</span>
-            <span className="rounded bg-slate-100 px-2 py-1">{t('dashboard.metricAutoAnalysisRuns')}: {telemetry?.auto_analysis_runs ?? 0}</span>
-            <span className="rounded bg-slate-100 px-2 py-1">{t('dashboard.metricInvalidStatusAttempts')}: {telemetry?.status_transition_invalid_attempts ?? 0}</span>
+          <div className="app-text-muted mt-3 flex gap-2 text-xs">
+            <span className="rounded bg-[var(--bg-elevated)] px-2 py-1">{t('dashboard.metricTelegramToTask')}: {telemetry?.telegram_to_task_success ?? 0}</span>
+            <span className="rounded bg-[var(--bg-elevated)] px-2 py-1">{t('dashboard.metricAutoAnalysisRuns')}: {telemetry?.auto_analysis_runs ?? 0}</span>
+            <span className="rounded bg-[var(--bg-elevated)] px-2 py-1">{t('dashboard.metricInvalidStatusAttempts')}: {telemetry?.status_transition_invalid_attempts ?? 0}</span>
           </div>
 
-          {isLoading && <p className="mt-3 text-slate-500">{t('dashboard.loading')}</p>}
+          {isLoading && <p className="app-text-faint mt-3">{t('dashboard.loading')}</p>}
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {STATUSES.map((status) => {
               const items = filtered.filter((t) => t.status === status)
               return (
-                <section key={status} className="rounded-xl bg-slate-50 p-3 shadow-sm">
-                  <h2 className="mb-2 text-xs font-semibold uppercase text-slate-600">{t(`status.${status}`)} ({items.length})</h2>
+                <section key={status} className="app-muted-panel rounded-lg p-3">
+                  <h2 className="app-kicker mb-2">{t(`status.${status}`)} ({items.length})</h2>
                   <div className="space-y-2">
                     {items.map((task) => (
-                      <div key={task.id} className="rounded border bg-white p-2">
+                      <div key={task.id} className="app-elevated rounded p-2">
                         <p className="text-sm font-medium">{task.title}</p>
-                        <p className="text-[11px] text-slate-500">{task.source_type}</p>
+                        <p className="app-text-faint text-[11px]">{task.source_type}</p>
                         <div className="mt-2 flex gap-2">
-                          <Link href={`/wiki/${task.source_ref || task.id}`} className="rounded bg-slate-900 px-2 py-1 text-xs text-white">{t('dashboard.wikiReview')}</Link>
-                          <Link href={`/tasks/${task.id}`} className="rounded bg-slate-100 px-2 py-1 text-xs">{t('dashboard.statusDetail')}</Link>
+                          <Link href={`/wiki/${task.source_ref || task.id}`} className="app-button-primary rounded px-2 py-1 text-xs">{t('dashboard.wikiReview')}</Link>
+                          <Link href={`/tasks/${task.id}`} className="app-button-secondary rounded px-2 py-1 text-xs">{t('dashboard.statusDetail')}</Link>
                         </div>
                       </div>
                     ))}

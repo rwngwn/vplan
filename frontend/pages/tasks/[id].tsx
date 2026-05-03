@@ -13,19 +13,19 @@ export default function TaskDetail() {
   const task = useMemo<Task | undefined>(() => (data || []).find((t) => t.id === taskId), [data, taskId])
 
   return (
-    <main className="min-h-screen bg-slate-50 p-4 md:p-6">
-      <div className="mx-auto max-w-3xl rounded-xl bg-white p-6 shadow-sm">
+    <main className="app-page min-h-screen p-4 md:p-6">
+      <div className="app-surface mx-auto max-w-3xl rounded-lg p-6">
         <div className="flex gap-2 text-sm">
-          <Link href="/dashboard" className="text-slate-500">← {t('nav.taskTelemetry')}</Link>
+          <Link href="/dashboard" className="app-link-muted">← {t('nav.taskTelemetry')}</Link>
         </div>
-        {isLoading && <p className="mt-4 text-slate-500">{t('dashboard.loading')}</p>}
-        {!isLoading && !task && <p className="mt-4 text-red-600">{t('tasks.notFound', taskId)}</p>}
+        {isLoading && <p className="app-text-faint mt-4">{t('dashboard.loading')}</p>}
+        {!isLoading && !task && <p className="mt-4 text-[var(--status-danger)]">{t('tasks.notFound', taskId)}</p>}
         {task && (
           <>
-            <h1 className="mt-3 text-2xl font-bold">{t('tasks.statusDetailTitle')}</h1>
-            <p className="mt-1 text-sm text-slate-600">{t('tasks.primaryWorkflow')}</p>
+            <h1 className="app-title mt-3">{t('tasks.statusDetailTitle')}</h1>
+            <p className="app-text-muted mt-1 text-sm">{t('tasks.primaryWorkflow')}</p>
             <p className="mt-2 text-base font-semibold">{task.title}</p>
-            <p className="mt-1 text-sm text-slate-500">{task.id}</p>
+            <p className="app-text-faint mt-1 text-sm">{task.id}</p>
             <div className="mt-3 grid gap-2 text-sm">
               <p><b>{t('tasks.status')}:</b> {t(`status.${task.status}`)}</p>
               <p><b>{t('tasks.source')}:</b> {task.source_type} / {task.source_ref || '-'}</p>
@@ -36,7 +36,7 @@ export default function TaskDetail() {
               <p><b>{t('tasks.resultSummary')}:</b> {task.result_summary || '-'}</p>
             </div>
             <div className="mt-4">
-              <Link href={`/wiki/${task.source_ref || task.id}`} className="rounded bg-slate-900 px-3 py-2 text-xs text-white">{t('tasks.openPrimaryWikiReview')}</Link>
+              <Link href={`/wiki/${task.source_ref || task.id}`} className="app-button-primary rounded px-3 py-2 text-xs">{t('tasks.openPrimaryWikiReview')}</Link>
             </div>
           </>
         )}

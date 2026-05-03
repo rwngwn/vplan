@@ -2,6 +2,28 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --bg-base: #11111a;
+  --bg-surface: #171821;
+  --bg-elevated: #202233;
+  --bg-field: #0f1017;
+  --bg-muted: #12131b;
+  --border-default: #2a2b33;
+  --border-strong: #3b3d4a;
+  --accent: #6366f1;
+  --accent-muted: #2a2f55;
+  --accent-hover: #6b6dff;
+  --text-primary: #e8e8ef;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --text-faint: #64748b;
+  --text-inverse: #ffffff;
+  --status-warning: #d97706;
+  --status-success: #059669;
+  --status-danger: #dc2626;
+  --shadow-surface: 0 14px 40px rgb(0 0 0 / 0.22);
+}
+
 html,
 body,
 #__next {
@@ -11,8 +33,8 @@ body,
 body {
   margin: 0;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-  background: #0b0d10;
-  color: #e5e7eb;
+  background: var(--bg-base);
+  color: var(--text-primary);
 }
 
 * {
@@ -24,4 +46,100 @@ input,
 textarea,
 select {
   transition: all 120ms ease;
+}
+
+button,
+input,
+textarea,
+select {
+  color: inherit;
+}
+
+@layer components {
+  .app-page {
+    background: var(--bg-base);
+    color: var(--text-primary);
+  }
+
+  .app-surface {
+    border: 1px solid var(--border-default);
+    background: var(--bg-surface);
+    box-shadow: var(--shadow-surface);
+  }
+
+  .app-elevated {
+    border: 1px solid var(--border-default);
+    background: var(--bg-elevated);
+  }
+
+  .app-muted-panel {
+    border: 1px solid var(--border-default);
+    background: var(--bg-muted);
+  }
+
+  .app-field {
+    border: 1px solid var(--border-default);
+    background: var(--bg-field);
+    color: var(--text-primary);
+  }
+
+  .app-field::placeholder {
+    color: var(--text-faint);
+  }
+
+  .app-button-primary {
+    background: var(--accent);
+    color: var(--text-inverse);
+  }
+
+  .app-button-primary:hover {
+    background: var(--accent-hover);
+  }
+
+  .app-button-secondary {
+    background: var(--accent-muted);
+    color: var(--text-primary);
+  }
+
+  .app-button-secondary:hover {
+    background: var(--bg-elevated);
+  }
+
+  .app-link-muted {
+    color: var(--text-secondary);
+  }
+
+  .app-link-muted:hover {
+    color: var(--text-inverse);
+  }
+
+  .app-text-muted {
+    color: var(--text-muted);
+  }
+
+  .app-text-faint {
+    color: var(--text-faint);
+  }
+
+  .app-kicker {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: uppercase;
+  }
+
+  .app-title {
+    color: var(--text-primary);
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  .app-section-title {
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    font-weight: 700;
+    line-height: 1.35;
+  }
 }

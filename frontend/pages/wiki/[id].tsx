@@ -27,6 +27,45 @@ const EditorProvider = dynamic(() => import('react-simple-wysiwyg').then((m) => 
 
 const td = new TurndownService()
 
+function stripHnPromptTemplate(raw: string): string {
+  if (!raw) return raw
+  const markers = [
+    'Ranní HN digest',
+    'ČÁST 2 — NOTEBOOKLM-READY PODKLAD',
+    'NotebookLM-ready',
+    'Metodika sběru:'
+  ]
+  const hasTemplate = markers.some((m) => raw.includes(m))
+  if (!hasTemplate) return raw
+
+  return raw
+    .split('\n')
+    .filter((line) => {
+      const l = line.trim()
+      if (!l) return true
+      if (l.startsWith('8–12 nejdůležitějších položek')) return false
+      if (l.startsWith('U každé položky:')) return false
+      if (l === 'název') return false
+      if (l.includes('1 věta proč je důležitá')) return false
+      if (l.startsWith('odkaz (URL')) return false
+      if (l.startsWith('Poté sekce:')) return false
+      if (l.includes('## Co číst jako první')) return false
+      if (l.includes('## Rychlé trendy dne')) return false
+      if (l.startsWith('ČÁST 2')) return false
+      if (l.includes('## NotebookLM-ready')) return false
+      if (l.includes('Instrukce pro NotebookLM')) return false
+      if (l.includes('Vytvoř 2–3 minutové audio shrnutí')) return false
+      if (l.includes('Přidej 8 stručných bullet pointů')) return false
+      if (l.includes('Nakonec dej 3 praktické kroky')) return false
+      if (l.startsWith('Pak vlož "PODKLAD:"')) return false
+      if (l.startsWith('PODKLAD:')) return false
+      if (l.startsWith('Metodika sběru:')) return false
+      if (l.includes('Použij oficiální HN Firebase endpointy')) return false
+      return true
+    })
+    .join('\n')
+}
+
 export default function WikiNotePage() {
   const router = useRouter()
   const noteId = typeof router.query.id === 'string' ? router.query.id : ''
@@ -56,7 +95,8 @@ export default function WikiNotePage() {
 
   useEffect(() => {
     setTitle(note?.title || '')
-    setHtml(marked.parse(note?.body || '') as string)
+    const cleanedBody = stripHnPromptTemplate(note?.body || '')
+    setHtml(marked.parse(cleanedBody) as string)
     setIsDirty(false)
   }, [note?.id, note?.title, note?.body])
 
@@ -258,21 +298,23 @@ export default function WikiNotePage() {
               </EditorProvider>
 
               {selectionToolbar && (
-                <div className="app-selection-toolbar" style={{ left: selectionToolbar.x, top: selectionToolbar.y }}>
+                <div className="app-selection-toolbar" style={{ left: selectionToolbar.x, top: selectionToolbar.y }} onMouseDown={(e) => e.preventDefault()}>
                   <button
                     type="button"
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={() => {
                       if (selectionToolbar.quote) navigator.clipboard?.writeText(selectionToolbar.quote)
                     }}
                   >Copy</button>
                   <button
                     type="button"
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={() => {
                       setCommentPopover({ x: selectionToolbar.x, y: selectionToolbar.y + 14, quote: selectionToolbar.quote })
                       setContextComment('')
                     }}
                   >Comment</button>
-                  <button type="button" onClick={() => setSelectionToolbar(null)}>✕</button>
+                  <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setSelectionToolbar(null)}>✕</button>
                 </div>
               )}
 
@@ -305,7 +347,13 @@ export default function WikiNotePage() {
             <div className="app-muted-panel mt-4 rounded-lg p-3">
               <div className="app-kicker mb-2">{t('wiki.annotateSelection')}</div>
               <textarea value={annotationComment} onChange={(e) => setAnnotationComment(e.target.value)} placeholder={t('wiki.annotationCommentPlaceholder')} className="app-field min-h-20 w-full rounded p-2 text-sm" />
-              <button onClick={onAddAnnotation} className="app-button-secondary mt-2 w-full rounded px-3 py-2 text-sm">{t('wiki.addAnnotationFromSelection')}</button>
+              <button
+                onClick={() => {
+                  onAddAnnotation()
+                  setAnnotationTab('open')
+                }}
+                className="app-button-secondary mt-2 w-full rounded px-3 py-2 text-sm"
+              >{t('wiki.addAnnotationFromSelection')}</button>
             </div>
 
             <div className="mt-4 flex items-center gap-2 border-t border-[var(--border-default)] pt-3">

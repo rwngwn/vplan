@@ -15,6 +15,7 @@ import {
   submitReview,
   type InlineAnnotation,
 } from '../../lib/api'
+import { t } from '../../lib/i18n'
 
 type Tab = 'edit' | 'preview' | 'diff' | 'review'
 type ReviewAnnotation = {
@@ -24,8 +25,16 @@ type ReviewAnnotation = {
   comment: string
 }
 
+const TABS: Tab[] = ['edit', 'preview', 'diff', 'review']
+
 function lineFromOffset(text: string, offset: number): number {
   return text.slice(0, offset).split('\n').length
+}
+
+function reviewDecisionLabel(decision: 'pending' | 'approve' | 'request_changes'): string {
+  if (decision === 'approve') return t('review.approve')
+  if (decision === 'request_changes') return t('review.requestChanges')
+  return t('review.pending')
 }
 
 export default function EditorPage() {
@@ -61,11 +70,11 @@ export default function EditorPage() {
 
   const onSave = async () => {
     if (!taskId) return
-    setSaveState('Ukládám…')
+    setSaveState(t('editor.saving'))
     const res = await saveWorkspace(taskId, markdown)
     setAnnotationsDetected(res.annotations)
     setSelectedRevisionId(res.revision_id)
-    setSaveState(`Uloženo rev ${res.revision_id}`)
+    setSaveState(t('editor.savedRevision', res.revision_id))
     setTimeout(() => setSaveState(''), 1800)
     await Promise.all([mutateWorkspace(), mutateRevisions()])
   }
@@ -73,7 +82,7 @@ export default function EditorPage() {
   const onLoadDiff = async () => {
     if (!taskId || !selectedRevisionId) return
     const res = await getRevisionDiff(taskId, selectedRevisionId)
-    setDiff(res.diff || 'Žádný diff (první revize?)')
+    setDiff(res.diff || t('editor.noDiff'))
   }
 
   const onCaptureSelection = (el: HTMLTextAreaElement) => {
@@ -100,7 +109,7 @@ export default function EditorPage() {
       revision_id: selectedRevisionId,
       decision: reviewDecision,
       summary: reviewSummary,
-      inline_feedback: reviewAnnotations.map((a) => ({ line_no: a.line_no, comment: `${a.comment} | quote: ${a.quote}` })),
+      inline_feedback: reviewAnnotations.map((a) => ({ line_no: a.line_no, comment: t('editor.inlineFeedbackQuote', a.comment, a.quote) })),
     })
     await mutateRevisions()
     const packet = await getFeedbackPacket(taskId)
@@ -119,21 +128,21 @@ export default function EditorPage() {
     <main className="h-screen bg-[#11111a] text-[#e8e8ef]">
       <div className="grid h-full grid-cols-1 lg:grid-cols-[260px_1fr_340px]">
         <aside className="border-r border-[#2a2b33] bg-[#171821] p-3">
-          <div className="mb-3 text-xs uppercase text-slate-400">Workspace</div>
+          <div className="mb-3 text-xs uppercase text-slate-400">{t('editor.workspace')}</div>
           <div className="mb-3 flex items-center gap-2 text-xs">
-            <Link href="/dashboard" className="text-slate-300 hover:text-white">← dashboard</Link>
+            <Link href="/dashboard" className="text-slate-300 hover:text-white">← {t('nav.dashboard')}</Link>
             <span className="text-slate-500">·</span>
-            <Link href={`/tasks/${taskId}`} className="text-slate-300 hover:text-white">task</Link>
+            <Link href={`/tasks/${taskId}`} className="text-slate-300 hover:text-white">{t('nav.task')}</Link>
           </div>
 
           <div className="mb-4 rounded border border-[#2a2b33] bg-[#12131b] p-2">
-            <p className="text-xs text-slate-400">Aktuální dokument</p>
-            <p className="mt-1 text-sm font-medium">{task?.title || 'Task note'}</p>
+            <p className="text-xs text-slate-400">{t('editor.currentDocument')}</p>
+            <p className="mt-1 text-sm font-medium">{task?.title || t('editor.defaultTaskNote')}</p>
             <p className="text-[11px] text-slate-500">{taskId}</p>
           </div>
 
           <div className="mb-4">
-            <p className="mb-2 text-xs uppercase text-slate-400">Revisions</p>
+            <p className="mb-2 text-xs uppercase text-slate-400">{t('editor.revisions')}</p>
             <div className="max-h-44 space-y-1 overflow-auto">
               {(revisions || []).map((r) => (
                 <button
@@ -142,16 +151,16 @@ export default function EditorPage() {
                   className={`w-full rounded border px-2 py-1 text-left text-xs ${selectedRevisionId === r.revision_id ? 'border-[#6b6dff] bg-[#20233a]' : 'border-[#2a2b33] bg-[#12131b]'}`}
                 >
                   <div className="font-mono">{r.revision_id}</div>
-                  <div className="text-slate-500">{r.review_decision}</div>
+                  <div className="text-slate-500">{reviewDecisionLabel(r.review_decision)}</div>
                 </button>
               ))}
             </div>
           </div>
 
           <div>
-            <p className="mb-2 text-xs uppercase text-slate-400">Knowledge notes</p>
+            <p className="mb-2 text-xs uppercase text-slate-400">{t('editor.knowledgeNotes')}</p>
             <div className="mb-2 flex gap-1">
-              <input value={newNoteTitle} onChange={(e) => setNewNoteTitle(e.target.value)} placeholder="Nová poznámka" className="w-full rounded border border-[#2a2b33] bg-[#12131b] px-2 py-1 text-xs" />
+              <input value={newNoteTitle} onChange={(e) => setNewNoteTitle(e.target.value)} placeholder={t('editor.newNotePlaceholder')} className="w-full rounded border border-[#2a2b33] bg-[#12131b] px-2 py-1 text-xs" />
               <button onClick={onCreateNote} className="rounded bg-[#2a2f55] px-2 text-xs">+</button>
             </div>
             <div className="max-h-48 space-y-1 overflow-auto">
@@ -166,12 +175,12 @@ export default function EditorPage() {
 
         <section className="flex min-w-0 flex-col">
           <header className="flex items-center gap-2 border-b border-[#2a2b33] bg-[#141520] px-3 py-2">
-            {(['edit', 'preview', 'diff', 'review'] as Tab[]).map((t) => (
-              <button key={t} onClick={() => setTab(t)} className={`rounded px-2 py-1 text-xs ${tab === t ? 'bg-[#6366f1] text-white' : 'bg-[#1f2230] text-slate-300'}`}>
-                {t}
+            {TABS.map((tabId) => (
+              <button key={tabId} onClick={() => setTab(tabId)} className={`rounded px-2 py-1 text-xs ${tab === tabId ? 'bg-[#6366f1] text-white' : 'bg-[#1f2230] text-slate-300'}`}>
+                {t(`tabs.${tabId}`)}
               </button>
             ))}
-            <button onClick={onSave} className="ml-auto rounded bg-[#6366f1] px-3 py-1 text-xs text-white">Save</button>
+            <button onClick={onSave} className="ml-auto rounded bg-[#6366f1] px-3 py-1 text-xs text-white">{t('editor.save')}</button>
             <span className="text-xs text-slate-500">{saveState}</span>
           </header>
 
@@ -182,24 +191,24 @@ export default function EditorPage() {
                 value={markdown}
                 onChange={(e) => setMarkdown(e.target.value)}
                 className="h-full w-full resize-none rounded border border-[#2a2b33] bg-[#0f1017] p-4 font-mono text-sm leading-6 text-slate-100"
-                placeholder="# Wiki page\n\n- piš markdown\n- vyber text a přidej anotaci vpravo"
+                placeholder={t('editor.markdownPlaceholder')}
               />
             </div>
           )}
 
           {tab === 'preview' && (
             <div className="h-full overflow-auto p-6">
-              <article className="prose prose-invert max-w-none whitespace-pre-wrap text-sm leading-7">{markdown || 'Preview...'}</article>
+              <article className="prose prose-invert max-w-none whitespace-pre-wrap text-sm leading-7">{markdown || t('editor.emptyPreview')}</article>
             </div>
           )}
 
           {tab === 'diff' && (
             <div className="h-full p-3">
               <div className="mb-2 flex gap-2">
-                <button onClick={onLoadDiff} className="rounded bg-[#1f2230] px-3 py-1 text-xs">Load diff</button>
-                <span className="text-xs text-slate-500">rev: {selectedRevisionId || '-'}</span>
+                <button onClick={onLoadDiff} className="rounded bg-[#1f2230] px-3 py-1 text-xs">{t('editor.loadDiff')}</button>
+                <span className="text-xs text-slate-500">{t('editor.revisionPrefix')} {selectedRevisionId || '-'}</span>
               </div>
-              <pre className="h-[calc(100%-36px)] overflow-auto rounded border border-[#2a2b33] bg-[#0f1017] p-3 text-xs">{diff || 'Vyber revizi a načti diff'}</pre>
+              <pre className="h-[calc(100%-36px)] overflow-auto rounded border border-[#2a2b33] bg-[#0f1017] p-3 text-xs">{diff || t('editor.selectRevisionForDiff')}</pre>
             </div>
           )}
 
@@ -207,26 +216,26 @@ export default function EditorPage() {
             <div className="h-full overflow-auto p-3">
               <div className="rounded border border-[#2a2b33] bg-[#0f1017] p-3">
                 <div className="mb-2 flex gap-2">
-                  <button onClick={() => setReviewDecision('approve')} className={`rounded px-2 py-1 text-xs ${reviewDecision === 'approve' ? 'bg-emerald-600' : 'bg-[#1f2230]'}`}>approve</button>
-                  <button onClick={() => setReviewDecision('request_changes')} className={`rounded px-2 py-1 text-xs ${reviewDecision === 'request_changes' ? 'bg-amber-600' : 'bg-[#1f2230]'}`}>request changes</button>
+                  <button onClick={() => setReviewDecision('approve')} className={`rounded px-2 py-1 text-xs ${reviewDecision === 'approve' ? 'bg-emerald-600' : 'bg-[#1f2230]'}`}>{t('review.approve')}</button>
+                  <button onClick={() => setReviewDecision('request_changes')} className={`rounded px-2 py-1 text-xs ${reviewDecision === 'request_changes' ? 'bg-amber-600' : 'bg-[#1f2230]'}`}>{t('review.requestChanges')}</button>
                 </div>
-                <textarea value={reviewSummary} onChange={(e) => setReviewSummary(e.target.value)} className="min-h-20 w-full rounded border border-[#2a2b33] bg-[#11131d] p-2 text-sm" placeholder="Shrnutí review" />
-                <button onClick={onSubmitReview} className="mt-2 rounded bg-[#6366f1] px-3 py-1 text-xs">Submit review</button>
-                <pre className="mt-3 whitespace-pre-wrap rounded border border-[#2a2b33] bg-[#11131d] p-2 text-xs text-slate-300">{feedbackPacket || 'Feedback packet se objeví po submitu.'}</pre>
+                <textarea value={reviewSummary} onChange={(e) => setReviewSummary(e.target.value)} className="min-h-20 w-full rounded border border-[#2a2b33] bg-[#11131d] p-2 text-sm" placeholder={t('editor.reviewSummaryPlaceholder')} />
+                <button onClick={onSubmitReview} className="mt-2 rounded bg-[#6366f1] px-3 py-1 text-xs">{t('editor.submitReview')}</button>
+                <pre className="mt-3 whitespace-pre-wrap rounded border border-[#2a2b33] bg-[#11131d] p-2 text-xs text-slate-300">{feedbackPacket || t('editor.feedbackPacketEmpty')}</pre>
               </div>
             </div>
           )}
         </section>
 
         <aside className="border-l border-[#2a2b33] bg-[#171821] p-3">
-          <div className="mb-2 text-xs uppercase text-slate-400">Annotations</div>
-          <p className="mb-2 text-xs text-slate-500">1) Označ text v editoru 2) napiš komentář 3) Add from selection</p>
+          <div className="mb-2 text-xs uppercase text-slate-400">{t('editor.annotations')}</div>
+          <p className="mb-2 text-xs text-slate-500">{t('editor.annotationInstructions')}</p>
 
           <textarea
             value={selectionComment}
             onChange={(e) => setSelectionComment(e.target.value)}
             className="min-h-20 w-full rounded border border-[#2a2b33] bg-[#12131b] p-2 text-xs"
-            placeholder="Komentář k vybranému textu"
+            placeholder={t('editor.selectionCommentPlaceholder')}
           />
 
           <button
@@ -235,14 +244,14 @@ export default function EditorPage() {
             }}
             className="mt-2 w-full rounded bg-[#2a2f55] px-3 py-1.5 text-xs"
           >
-            Add from selection
+            {t('editor.addFromSelection')}
           </button>
 
           <div className="mt-3 space-y-2">
-            {reviewAnnotations.length === 0 && <p className="text-xs text-slate-500">Žádné review anotace.</p>}
+            {reviewAnnotations.length === 0 && <p className="text-xs text-slate-500">{t('editor.noReviewAnnotations')}</p>}
             {reviewAnnotations.map((a) => (
               <div key={a.id} className="rounded border border-[#2a2b33] bg-[#12131b] p-2">
-                <div className="text-[11px] text-amber-300">line {a.line_no}</div>
+                <div className="text-[11px] text-amber-300">{t('editor.linePrefix')} {a.line_no}</div>
                 <div className="mt-1 text-xs text-slate-300">“{a.quote.slice(0, 120)}”</div>
                 <div className="mt-1 text-xs">{a.comment}</div>
               </div>
@@ -250,10 +259,10 @@ export default function EditorPage() {
           </div>
 
           <div className="mt-4">
-            <div className="mb-1 text-xs uppercase text-slate-400">Detected agent instructions</div>
+            <div className="mb-1 text-xs uppercase text-slate-400">{t('editor.detectedAgentInstructions')}</div>
             <div className="max-h-40 space-y-1 overflow-auto">
               {annotationsDetected.map((a, i) => (
-                <div key={`${a.line_no}-${i}`} className="rounded bg-[#12131b] p-2 text-xs">ř.{a.line_no}: {a.instruction}</div>
+                <div key={`${a.line_no}-${i}`} className="rounded bg-[#12131b] p-2 text-xs">{t('editor.linePrefix')} {a.line_no}: {a.instruction}</div>
               ))}
             </div>
           </div>

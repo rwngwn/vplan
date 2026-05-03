@@ -7,6 +7,7 @@ import TurndownService from 'turndown'
 import { marked } from 'marked'
 
 import { fetchNotes, fetchTasks, listRevisions, saveWorkspace, submitReview, transitionTask, updateNote, updateTask } from '../../lib/api'
+import { t } from '../../lib/i18n'
 
 const Editor = dynamic(() => import('react-simple-wysiwyg').then((m) => m.DefaultEditor), { ssr: false })
 const BtnBold = dynamic(() => import('react-simple-wysiwyg').then((m) => m.BtnBold), { ssr: false })
@@ -60,12 +61,12 @@ export default function WikiNotePage() {
     if (!isDirty || !noteId) return
     const handle = setTimeout(async () => {
       try {
-        setSaveState('Autosave…')
+        setSaveState(t('wiki.autosave'))
         await persistWiki()
-        setSaveState('Saved')
+        setSaveState(t('wiki.saved'))
         setIsDirty(false)
       } catch {
-        setSaveState('Autosave failed')
+        setSaveState(t('wiki.autosaveFailed'))
       }
     }, 900)
 
@@ -74,12 +75,12 @@ export default function WikiNotePage() {
 
   const onSave = async () => {
     try {
-      setSaveState('Saving…')
+      setSaveState(t('wiki.saving'))
       await persistWiki()
-      setSaveState('Saved')
+      setSaveState(t('wiki.saved'))
       setIsDirty(false)
     } catch {
-      setSaveState('Save failed')
+      setSaveState(t('wiki.saveFailed'))
     }
   }
 
@@ -92,7 +93,7 @@ export default function WikiNotePage() {
     await submitReview(selectedTask, { revision_id: latest.revision_id, decision, summary: reviewSummary, inline_feedback: [] })
     await transitionTask(selectedTask, decision === 'approve' ? 'review' : 'in_progress')
     if (decision === 'approve') {
-      await updateTask(selectedTask, { result_summary: reviewSummary || 'Approved in wiki review' })
+      await updateTask(selectedTask, { result_summary: reviewSummary || t('wiki.approvedSummary') })
     }
     await mutateTasks()
     setReviewSummary('')
@@ -103,10 +104,10 @@ export default function WikiNotePage() {
     <main className="min-h-screen bg-[#11111a] text-[#e8e8ef]">
       <div className="mx-auto max-w-5xl p-2 md:p-4">
         <div className="mb-2 flex items-center gap-2 text-xs text-slate-400">
-          <span>wiki workspace</span>
+          <span>{t('wiki.breadcrumbWorkspace')}</span>
           <span>·</span>
-          <Link href="/dashboard" className="hover:text-white">telemetry</Link>
-          <button onClick={() => setShowPanel((v) => !v)} className="ml-auto rounded bg-[#1f2230] px-2 py-1 text-xs">Review panel</button>
+          <Link href="/dashboard" className="hover:text-white">{t('wiki.breadcrumbTelemetry')}</Link>
+          <button onClick={() => setShowPanel((v) => !v)} className="ml-auto rounded bg-[#1f2230] px-2 py-1 text-xs">{t('wiki.reviewPanel')}</button>
         </div>
 
         <input
@@ -138,22 +139,22 @@ export default function WikiNotePage() {
         </div>
 
         <div className="mt-2 flex items-center gap-2">
-          <button onClick={onSave} className="rounded bg-[#6366f1] px-3 py-1.5 text-xs text-white">Save</button>
+          <button onClick={onSave} className="rounded bg-[#6366f1] px-3 py-1.5 text-xs text-white">{t('wiki.save')}</button>
           <span className="text-xs text-slate-500">{saveState}</span>
-          <span className="ml-auto text-[11px] text-slate-500">Markdown běží na pozadí automaticky</span>
+          <span className="ml-auto text-[11px] text-slate-500">{t('wiki.markdownBackground')}</span>
         </div>
 
         {showPanel && (
           <div className="mt-3 rounded border border-[#2a2b33] bg-[#12131b] p-3">
-            <h3 className="text-xs uppercase text-slate-400">Review Actions</h3>
+            <h3 className="text-xs uppercase text-slate-400">{t('wiki.reviewActions')}</h3>
             <select value={selectedTask} onChange={(e) => setSelectedTask(e.target.value)} className="mt-2 w-full rounded border border-[#2a2b33] bg-[#0f1017] px-2 py-2 text-xs">
-              <option value="">Select linked task</option>
-              {(tasks || []).map((t) => <option key={t.id} value={t.id}>{t.title} [{t.status}]</option>)}
+              <option value="">{t('wiki.selectLinkedTask')}</option>
+              {(tasks || []).map((task) => <option key={task.id} value={task.id}>{task.title} [{t(`status.${task.status}`)}]</option>)}
             </select>
-            <textarea value={reviewSummary} onChange={(e) => setReviewSummary(e.target.value)} className="mt-2 min-h-24 w-full rounded border border-[#2a2b33] bg-[#0f1017] p-2 text-xs" placeholder="Review summary" />
+            <textarea value={reviewSummary} onChange={(e) => setReviewSummary(e.target.value)} className="mt-2 min-h-24 w-full rounded border border-[#2a2b33] bg-[#0f1017] p-2 text-xs" placeholder={t('wiki.reviewSummary')} />
             <div className="mt-2 flex gap-2">
-              <button onClick={() => onSubmitReview('request_changes')} className="rounded bg-amber-600 px-2 py-1 text-xs">Request changes</button>
-              <button onClick={() => onSubmitReview('approve')} className="rounded bg-emerald-600 px-2 py-1 text-xs">Approve</button>
+              <button onClick={() => onSubmitReview('request_changes')} className="rounded bg-amber-600 px-2 py-1 text-xs">{t('wiki.requestChanges')}</button>
+              <button onClick={() => onSubmitReview('approve')} className="rounded bg-emerald-600 px-2 py-1 text-xs">{t('wiki.approve')}</button>
             </div>
           </div>
         )}

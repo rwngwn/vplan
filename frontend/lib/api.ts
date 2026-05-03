@@ -1,3 +1,5 @@
+import { t } from './i18n'
+
 export type TaskStatus = 'open' | 'in_progress' | 'review' | 'done' | 'blocked' | 'cancelled'
 
 export type Task = {
@@ -41,7 +43,7 @@ export async function fetchTasks(params?: { source_ref?: string; status?: string
   if (params?.status) q.set('status', params.status)
   const suffix = q.toString() ? `?${q.toString()}` : ''
   const res = await fetch(`${API_BASE}/tasks${suffix}`)
-  if (!res.ok) throw new Error(`Failed to fetch tasks: ${res.status}`)
+  if (!res.ok) throw new Error(t('api.errors.fetchTasks', res.status))
   return res.json()
 }
 
@@ -51,7 +53,7 @@ export async function createTask(payload: Partial<Task> & { title: string }) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   })
-  if (!res.ok) throw new Error(`Failed to create task: ${res.status}`)
+  if (!res.ok) throw new Error(t('api.errors.createTask', res.status))
   return res.json()
 }
 
@@ -61,7 +63,7 @@ export async function updateTask(taskId: string, payload: Partial<Task>) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   })
-  if (!res.ok) throw new Error(`Failed update: ${res.status}`)
+  if (!res.ok) throw new Error(t('api.errors.updateTask', res.status))
   return res.json()
 }
 
@@ -71,13 +73,13 @@ export async function transitionTask(taskId: string, toStatus: TaskStatus, note?
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ to_status: toStatus, note }),
   })
-  if (!res.ok) throw new Error(`Failed transition: ${res.status}`)
+  if (!res.ok) throw new Error(t('api.errors.transitionTask', res.status))
   return res.json()
 }
 
 export async function getWorkspace(taskId: string): Promise<{ task_id: string; markdown: string }> {
   const res = await fetch(`${API_BASE}/workspace/tasks/${taskId}`)
-  if (!res.ok) throw new Error(`Failed workspace load: ${res.status}`)
+  if (!res.ok) throw new Error(t('api.errors.loadWorkspace', res.status))
   return res.json()
 }
 
@@ -87,19 +89,19 @@ export async function saveWorkspace(taskId: string, markdown: string): Promise<{
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ markdown })
   })
-  if (!res.ok) throw new Error(`Failed workspace save: ${res.status}`)
+  if (!res.ok) throw new Error(t('api.errors.saveWorkspace', res.status))
   return res.json()
 }
 
 export async function listRevisions(taskId: string): Promise<WorkspaceRevision[]> {
   const res = await fetch(`${API_BASE}/workspace/tasks/${taskId}/revisions`)
-  if (!res.ok) throw new Error(`Failed revisions load: ${res.status}`)
+  if (!res.ok) throw new Error(t('api.errors.loadRevisions', res.status))
   return res.json()
 }
 
 export async function getRevisionDiff(taskId: string, revisionId: string): Promise<{ revision_id: string; diff: string }> {
   const res = await fetch(`${API_BASE}/workspace/tasks/${taskId}/revisions/${revisionId}/diff`)
-  if (!res.ok) throw new Error(`Failed diff load: ${res.status}`)
+  if (!res.ok) throw new Error(t('api.errors.loadDiff', res.status))
   return res.json()
 }
 
@@ -109,19 +111,19 @@ export async function submitReview(taskId: string, payload: { revision_id: strin
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   })
-  if (!res.ok) throw new Error(`Failed to submit review: ${res.status}`)
+  if (!res.ok) throw new Error(t('api.errors.submitReview', res.status))
   return res.json()
 }
 
 export async function getFeedbackPacket(taskId: string): Promise<{ task_id: string; latest_revision_id: string | null; feedback_prompt: string }> {
   const res = await fetch(`${API_BASE}/workspace/tasks/${taskId}/feedback-packet`)
-  if (!res.ok) throw new Error(`Failed feedback packet load: ${res.status}`)
+  if (!res.ok) throw new Error(t('api.errors.loadFeedbackPacket', res.status))
   return res.json()
 }
 
 export async function fetchNotes(): Promise<KnowledgeNote[]> {
   const res = await fetch(`${API_BASE}/knowledge/notes`)
-  if (!res.ok) throw new Error(`Failed notes fetch: ${res.status}`)
+  if (!res.ok) throw new Error(t('api.errors.fetchNotes', res.status))
   return res.json()
 }
 
@@ -131,7 +133,7 @@ export async function createNote(title: string, body = ''): Promise<KnowledgeNot
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ title, body }),
   })
-  if (!res.ok) throw new Error(`Failed note create: ${res.status}`)
+  if (!res.ok) throw new Error(t('api.errors.createNote', res.status))
   return res.json()
 }
 
@@ -141,13 +143,13 @@ export async function updateNote(noteId: string, payload: { title?: string; body
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   })
-  if (!res.ok) throw new Error(`Failed note update: ${res.status}`)
+  if (!res.ok) throw new Error(t('api.errors.updateNote', res.status))
   return res.json()
 }
 
 export async function getTelemetry(): Promise<Record<string, number>> {
   const res = await fetch(`${API_BASE}/telemetry`)
-  if (!res.ok) throw new Error(`Failed telemetry: ${res.status}`)
+  if (!res.ok) throw new Error(t('api.errors.fetchTelemetry', res.status))
   return res.json()
 }
 
@@ -161,6 +163,6 @@ export async function importHnDigests(limit = 10, path = '/data/hn-digests'): Pr
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ limit, path }),
   })
-  if (!res.ok) throw new Error(`Failed HN import: ${res.status}`)
+  if (!res.ok) throw new Error(t('api.errors.importHn', res.status))
   return res.json()
 }

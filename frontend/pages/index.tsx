@@ -3,6 +3,7 @@ import { useRouter } from 'next/router'
 import useSWR from 'swr'
 
 import { createNote, fetchNotes } from '../lib/api'
+import { t } from '../lib/i18n'
 
 export default function Home() {
   const router = useRouter()
@@ -19,7 +20,7 @@ export default function Home() {
         await router.replace(`/wiki/${notes[0].id}`)
         return
       }
-      const created = await createNote('Quick note')
+      const created = await createNote(t('app.quickNoteTitle'))
       await router.replace(`/wiki/${created.id}`)
     }
 
@@ -28,7 +29,7 @@ export default function Home() {
 
   return (
     <main className="min-h-screen grid place-items-center bg-[#11111a] text-slate-300">
-      <p className="text-sm">Otevírám markdown workspace…</p>
+      <p className="text-sm">{t('app.loadingWorkspace')}</p>
     </main>
   )
 }

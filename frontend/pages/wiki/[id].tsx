@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/router'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import useSWR from 'swr'
 import TurndownService from 'turndown'
 import { marked } from 'marked'
@@ -12,8 +12,13 @@ import { t } from '../../lib/i18n'
 const Editor = dynamic(() => import('react-simple-wysiwyg').then((m) => m.DefaultEditor), { ssr: false })
 const BtnBold = dynamic(() => import('react-simple-wysiwyg').then((m) => m.BtnBold), { ssr: false })
 const BtnItalic = dynamic(() => import('react-simple-wysiwyg').then((m) => m.BtnItalic), { ssr: false })
+const BtnUnderline = dynamic(() => import('react-simple-wysiwyg').then((m) => m.BtnUnderline), { ssr: false })
+const BtnStrikeThrough = dynamic(() => import('react-simple-wysiwyg').then((m) => m.BtnStrikeThrough), { ssr: false })
 const BtnBulletList = dynamic(() => import('react-simple-wysiwyg').then((m) => m.BtnBulletList), { ssr: false })
+const BtnNumberedList = dynamic(() => import('react-simple-wysiwyg').then((m) => m.BtnNumberedList), { ssr: false })
 const BtnLink = dynamic(() => import('react-simple-wysiwyg').then((m) => m.BtnLink), { ssr: false })
+const BtnClearFormatting = dynamic(() => import('react-simple-wysiwyg').then((m) => m.BtnClearFormatting), { ssr: false })
+const BtnStyles = dynamic(() => import('react-simple-wysiwyg').then((m) => m.BtnStyles), { ssr: false })
 const BtnUndo = dynamic(() => import('react-simple-wysiwyg').then((m) => m.BtnUndo), { ssr: false })
 const BtnRedo = dynamic(() => import('react-simple-wysiwyg').then((m) => m.BtnRedo), { ssr: false })
 const Separator = dynamic(() => import('react-simple-wysiwyg').then((m) => m.Separator), { ssr: false })
@@ -36,6 +41,10 @@ export default function WikiNotePage() {
   const [newSidebarNoteTitle, setNewSidebarNoteTitle] = useState('')
   const [annotationComment, setAnnotationComment] = useState('')
   const [annotationTab, setAnnotationTab] = useState<'open' | 'resolved'>('open')
+  const editorShellRef = useRef<HTMLDivElement | null>(null)
+  const [selectionToolbar, setSelectionToolbar] = useState<{ x: number; y: number; quote: string } | null>(null)
+  const [commentPopover, setCommentPopover] = useState<{ x: number; y: number; quote: string } | null>(null)
+  const [contextComment, setContextComment] = useState('')
 
   const markdown = useMemo(() => td.turndown(html || ''), [html])
 
@@ -99,16 +108,60 @@ export default function WikiNotePage() {
     }))
   }, [markdown])
 
-  const onAddAnnotation = () => {
-    const selectedQuote = (globalThis.getSelection?.()?.toString() || '').trim()
-    if (!selectedQuote || !annotationComment.trim()) return
-    const safeQuote = selectedQuote.replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    const safeComment = annotationComment.trim().replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const appendAnnotation = (quoteText: string, commentText: string) => {
+    const safeQuote = quoteText.replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const safeComment = commentText.trim().replace(/</g, '&lt;').replace(/>/g, '&gt;')
     setHtml((prev) => `${prev}<p>[[agent: ${safeComment} | quote: ${safeQuote}]]</p>`)
-    setAnnotationComment('')
     setIsDirty(true)
     setShowPanel(true)
   }
+
+  const onAddAnnotation = () => {
+    const selectedQuote = (globalThis.getSelection?.()?.toString() || '').trim()
+    if (!selectedQuote || !annotationComment.trim()) return
+    appendAnnotation(selectedQuote, annotationComment)
+    setAnnotationComment('')
+  }
+
+  useEffect(() => {
+    const updateSelection = () => {
+      const selection = globalThis.getSelection?.()
+      if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+        setSelectionToolbar(null)
+        return
+      }
+      const text = selection.toString().trim()
+      if (text.length < 2) {
+        setSelectionToolbar(null)
+        return
+      }
+      const range = selection.getRangeAt(0)
+      const container = range.commonAncestorContainer
+      const host = editorShellRef.current
+      if (!host) return
+      const belongs = container instanceof Node && host.contains(container)
+      if (!belongs) {
+        setSelectionToolbar(null)
+        return
+      }
+      const rect = range.getBoundingClientRect()
+      const hostRect = host.getBoundingClientRect()
+      setSelectionToolbar({
+        x: rect.left - hostRect.left + rect.width / 2,
+        y: rect.top - hostRect.top - 10,
+        quote: text
+      })
+    }
+
+    document.addEventListener('mouseup', updateSelection)
+    document.addEventListener('keyup', updateSelection)
+    document.addEventListener('selectionchange', updateSelection)
+    return () => {
+      document.removeEventListener('mouseup', updateSelection)
+      document.removeEventListener('keyup', updateSelection)
+      document.removeEventListener('selectionchange', updateSelection)
+    }
+  }, [])
 
   return (
     <main className="app-page min-h-screen">
@@ -161,7 +214,7 @@ export default function WikiNotePage() {
               className="app-document-title mb-4"
             />
 
-            <div className="app-document-editor">
+            <div ref={editorShellRef} className="app-document-editor app-editor-shell relative">
               <EditorProvider>
                 <Toolbar>
                   <BtnUndo />
@@ -169,8 +222,14 @@ export default function WikiNotePage() {
                   <Separator />
                   <BtnBold />
                   <BtnItalic />
+                  <BtnUnderline />
+                  <BtnStrikeThrough />
+                  <Separator />
                   <BtnBulletList />
+                  <BtnNumberedList />
                   <BtnLink />
+                  <BtnClearFormatting />
+                  <BtnStyles />
                 </Toolbar>
                 <Editor
                   value={html}
@@ -181,6 +240,50 @@ export default function WikiNotePage() {
                   containerProps={{}}
                 />
               </EditorProvider>
+
+              {selectionToolbar && (
+                <div className="app-selection-toolbar" style={{ left: selectionToolbar.x, top: selectionToolbar.y }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectionToolbar.quote) navigator.clipboard?.writeText(selectionToolbar.quote)
+                    }}
+                  >Copy</button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCommentPopover({ x: selectionToolbar.x, y: selectionToolbar.y + 14, quote: selectionToolbar.quote })
+                      setContextComment('')
+                    }}
+                  >Comment</button>
+                  <button type="button" onClick={() => setSelectionToolbar(null)}>✕</button>
+                </div>
+              )}
+
+              {commentPopover && (
+                <div className="app-comment-popover" style={{ left: commentPopover.x, top: commentPopover.y }}>
+                  <div className="app-text-faint mb-2 text-xs">„{commentPopover.quote.slice(0, 96)}{commentPopover.quote.length > 96 ? '…' : ''}“</div>
+                  <textarea
+                    className="app-field min-h-20 w-full rounded p-2 text-sm"
+                    placeholder="Add a comment..."
+                    value={contextComment}
+                    onChange={(e) => setContextComment(e.target.value)}
+                  />
+                  <div className="mt-2 flex justify-end gap-2">
+                    <button className="app-button-secondary rounded px-2 py-1 text-xs" onClick={() => setCommentPopover(null)}>Cancel</button>
+                    <button
+                      className="app-button-primary rounded px-2 py-1 text-xs"
+                      onClick={() => {
+                        if (!contextComment.trim()) return
+                        appendAnnotation(commentPopover.quote, contextComment)
+                        setCommentPopover(null)
+                        setSelectionToolbar(null)
+                        setContextComment('')
+                      }}
+                    >Save</button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="app-muted-panel mt-4 rounded-lg p-3">

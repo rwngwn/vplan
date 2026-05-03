@@ -6,7 +6,7 @@ import useSWR from 'swr'
 import TurndownService from 'turndown'
 import { marked } from 'marked'
 
-import { createNote, fetchNotes, fetchTasks, listRevisions, saveWorkspace, submitReview, transitionTask, updateNote, updateTask } from '../../lib/api'
+import { createNote, fetchNotes, updateNote } from '../../lib/api'
 import { t } from '../../lib/i18n'
 
 const Editor = dynamic(() => import('react-simple-wysiwyg').then((m) => m.DefaultEditor), { ssr: false })
@@ -26,38 +26,29 @@ export default function WikiNotePage() {
   const router = useRouter()
   const noteId = typeof router.query.id === 'string' ? router.query.id : ''
   const { data: notes } = useSWR('notes', fetchNotes)
-  const { data: tasks, mutate: mutateTasks } = useSWR(noteId ? ['tasks', noteId] : null, () => fetchTasks({ source_ref: noteId }))
   const note = useMemo(() => (notes || []).find((n) => n.id === noteId), [notes, noteId])
 
   const [title, setTitle] = useState('')
   const [html, setHtml] = useState('')
   const [saveState, setSaveState] = useState('')
-  const [reviewSummary, setReviewSummary] = useState('')
-  const [selectedTask, setSelectedTask] = useState('')
   const [isDirty, setIsDirty] = useState(false)
-  const [showPanel, setShowPanel] = useState(false)
+  const [showPanel, setShowPanel] = useState(true)
   const [newSidebarNoteTitle, setNewSidebarNoteTitle] = useState('')
   const [annotationComment, setAnnotationComment] = useState('')
+  const [annotationTab, setAnnotationTab] = useState<'open' | 'resolved'>('open')
 
   const markdown = useMemo(() => td.turndown(html || ''), [html])
 
   const persistWiki = useCallback(async () => {
     if (!noteId) return
     await updateNote(noteId, { title, body: markdown })
-    if (selectedTask) {
-      await saveWorkspace(selectedTask, `# ${title}\n\n${markdown}`)
-    }
-  }, [noteId, title, markdown, selectedTask])
+  }, [noteId, title, markdown])
 
   useEffect(() => {
     setTitle(note?.title || '')
     setHtml(marked.parse(note?.body || '') as string)
     setIsDirty(false)
   }, [note?.id, note?.title, note?.body])
-
-  useEffect(() => {
-    if (tasks?.[0]) setSelectedTask((prev) => prev || tasks[0].id)
-  }, [tasks])
 
   useEffect(() => {
     if (!isDirty || !noteId) return
@@ -86,22 +77,6 @@ export default function WikiNotePage() {
     }
   }
 
-  const onSubmitReview = async (decision: 'approve' | 'request_changes') => {
-    if (!selectedTask) return
-    await persistWiki()
-    const revs = await listRevisions(selectedTask)
-    const latest = revs[revs.length - 1]
-    if (!latest) return
-    await submitReview(selectedTask, { revision_id: latest.revision_id, decision, summary: reviewSummary, inline_feedback: [] })
-    await transitionTask(selectedTask, decision === 'approve' ? 'review' : 'in_progress')
-    if (decision === 'approve') {
-      await updateTask(selectedTask, { result_summary: reviewSummary || t('wiki.approvedSummary') })
-    }
-    await mutateTasks()
-    setReviewSummary('')
-    setShowPanel(false)
-  }
-
   const hnNotes = useMemo(() => (notes || []).filter((n) => n.title.toLowerCase().includes('hn')), [notes])
   const otherNotes = useMemo(() => (notes || []).filter((n) => !n.title.toLowerCase().includes('hn')), [notes])
 
@@ -113,6 +88,17 @@ export default function WikiNotePage() {
     await router.push(`/wiki/${created.id}`)
   }
 
+  const annotations = useMemo(() => {
+    const matches = [...markdown.matchAll(/\[\[agent:\s*(.*?)\s*\|\s*quote:\s*(.*?)\]\]/gi)]
+    return matches.map((m, i) => ({
+      id: `anno-${i + 1}`,
+      body: m[1]?.trim() || '',
+      quote: m[2]?.trim() || '',
+      status: 'open' as const,
+      when: 'now'
+    }))
+  }, [markdown])
+
   const onAddAnnotation = () => {
     const selectedQuote = (globalThis.getSelection?.()?.toString() || '').trim()
     if (!selectedQuote || !annotationComment.trim()) return
@@ -121,97 +107,121 @@ export default function WikiNotePage() {
     setHtml((prev) => `${prev}<p>[[agent: ${safeComment} | quote: ${safeQuote}]]</p>`)
     setAnnotationComment('')
     setIsDirty(true)
+    setShowPanel(true)
   }
 
   return (
     <main className="app-page min-h-screen">
-      <div className="mx-auto grid w-full max-w-[1400px] grid-cols-1 gap-4 px-3 py-4 lg:grid-cols-[300px_1fr] lg:px-4">
-        <aside className="app-surface h-fit rounded-lg p-3">
-          <div className="app-kicker mb-2">HN folder</div>
+      <div className={`mx-auto grid w-full max-w-[1480px] grid-cols-1 gap-4 px-3 py-4 lg:px-4 ${showPanel ? 'lg:grid-cols-[268px_1fr_340px]' : 'lg:grid-cols-[268px_1fr]'}`}>
+        <aside className="app-surface app-sidebar h-[calc(100vh-2rem)] rounded-xl p-3">
+          <div className="mb-3 flex items-center gap-2">
+            <div className="app-logo-tile">P</div>
+            <div className="text-sm font-semibold">Plannotator</div>
+            <div className="ml-auto text-[11px] app-text-faint">acme</div>
+          </div>
+
           <div className="space-y-1">
+            <div className="app-kicker mb-1">HN folder</div>
             {hnNotes.map((n) => (
-              <Link key={n.id} href={`/wiki/${n.id}`} className={`block rounded px-2 py-2 text-sm ${n.id === noteId ? 'bg-[var(--bg-elevated)]' : 'hover:bg-[var(--bg-muted)]'}`}>
-                {n.title}
+              <Link key={n.id} href={`/wiki/${n.id}`} className={`app-file-row ${n.id === noteId ? 'is-active' : ''}`}>
+                <span className="truncate">{n.title}</span>
               </Link>
             ))}
           </div>
-          <div className="app-kicker mb-2 mt-4">{t('wiki.otherFiles')}</div>
-          <div className="max-h-56 space-y-1 overflow-auto">
+
+          <div className="mt-4 max-h-[40vh] space-y-1 overflow-auto">
+            <div className="app-kicker mb-1">{t('wiki.otherFiles')}</div>
             {otherNotes.map((n) => (
-              <Link key={n.id} href={`/wiki/${n.id}`} className={`block rounded px-2 py-2 text-sm ${n.id === noteId ? 'bg-[var(--bg-elevated)]' : 'hover:bg-[var(--bg-muted)]'}`}>
-                {n.title}
+              <Link key={n.id} href={`/wiki/${n.id}`} className={`app-file-row ${n.id === noteId ? 'is-active' : ''}`}>
+                <span className="truncate">{n.title}</span>
               </Link>
             ))}
           </div>
-          <div className="mt-4 space-y-2 border-t border-[var(--border-default)] pt-3">
-            <input value={newSidebarNoteTitle} onChange={(e) => setNewSidebarNoteTitle(e.target.value)} placeholder={t('wiki.newMdPlaceholder')} className="app-field w-full rounded px-3 py-2 text-sm" />
-            <button onClick={onCreateSidebarNote} className="app-button-primary w-full rounded px-3 py-2 text-sm">{t('wiki.createMd')}</button>
+
+          <div className="mt-auto space-y-2 border-t border-[var(--border-default)] pt-3">
+            <input value={newSidebarNoteTitle} onChange={(e) => setNewSidebarNoteTitle(e.target.value)} placeholder={t('wiki.newMdPlaceholder')} className="app-field w-full rounded-md px-3 py-2 text-sm" />
+            <button onClick={onCreateSidebarNote} className="app-button-primary w-full rounded-md px-3 py-2 text-sm">+ {t('wiki.createMd')}</button>
           </div>
         </aside>
 
-        <div className="min-w-0 pb-24 md:pb-10">
-          <div className="app-text-muted mb-5 flex flex-wrap items-center gap-x-2 gap-y-3 text-xs">
-            <span>{t('wiki.breadcrumbWorkspace')}</span>
-            <span>·</span>
-            <Link href="/dashboard" className="app-link-muted min-h-11 py-3 md:min-h-0 md:py-0">{t('wiki.breadcrumbTelemetry')}</Link>
-            <button onClick={() => setShowPanel((v) => !v)} className="app-button-secondary ml-auto min-h-11 rounded px-3 py-2 text-xs md:min-h-0 md:py-1.5">{t('wiki.reviewPanel')}</button>
-          </div>
-
-          <input
-            value={title}
-            onChange={(e) => { setTitle(e.target.value); setIsDirty(true) }}
-            className="app-document-title mb-5"
-          />
-
-          <div className="app-document-editor">
-            <EditorProvider>
-              <Toolbar>
-                <BtnUndo />
-                <BtnRedo />
-                <Separator />
-                <BtnBold />
-                <BtnItalic />
-                <BtnBulletList />
-                <BtnLink />
-              </Toolbar>
-              <Editor
-                value={html}
-                onChange={(e) => {
-                  setHtml(e.target.value)
-                  setIsDirty(true)
-                }}
-                containerProps={{}}
-              />
-            </EditorProvider>
-          </div>
-
-          <div className="app-muted-panel mt-4 rounded-lg p-3">
-            <div className="app-kicker mb-2">{t('wiki.annotateSelection')}</div>
-            <textarea value={annotationComment} onChange={(e) => setAnnotationComment(e.target.value)} placeholder={t('wiki.annotationCommentPlaceholder')} className="app-field min-h-20 w-full rounded p-2 text-sm" />
-            <button onClick={onAddAnnotation} className="app-button-secondary mt-2 w-full rounded px-3 py-2 text-sm">{t('wiki.addAnnotationFromSelection')}</button>
-          </div>
-
-          <div className="sticky bottom-0 z-10 -mx-4 mt-4 flex flex-wrap items-center gap-2 border-t border-[var(--border-default)] bg-[var(--bg-base)]/95 px-4 py-3 backdrop-blur md:static md:mx-0 md:border-0 md:bg-transparent md:px-0 md:py-0 md:backdrop-blur-0">
-            <button onClick={onSave} className="app-button-primary min-h-11 rounded px-4 py-2 text-xs md:min-h-0 md:py-1.5">{t('wiki.save')}</button>
-            <span className="app-text-faint min-w-0 flex-1 text-xs">{saveState}</span>
-            <span className="app-text-faint w-full text-[11px] md:ml-auto md:w-auto">{t('wiki.markdownBackground')}</span>
-          </div>
-
-          {showPanel && (
-            <div className="app-muted-panel mt-5 rounded-lg p-4">
-              <h3 className="app-kicker">{t('wiki.reviewActions')}</h3>
-              <select value={selectedTask} onChange={(e) => setSelectedTask(e.target.value)} className="app-field mt-3 min-h-11 w-full rounded px-3 py-2 text-sm md:min-h-0 md:text-xs">
-                <option value="">{t('wiki.selectLinkedTask')}</option>
-                {(tasks || []).map((task) => <option key={task.id} value={task.id}>{task.title} [{t(`status.${task.status}`)}]</option>)}
-              </select>
-              <textarea value={reviewSummary} onChange={(e) => setReviewSummary(e.target.value)} className="app-field mt-3 min-h-28 w-full rounded p-3 text-sm md:min-h-24 md:text-xs" placeholder={t('wiki.reviewSummary')} />
-              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                <button onClick={() => onSubmitReview('request_changes')} className="min-h-11 rounded bg-[var(--status-warning)] px-3 py-2 text-xs md:min-h-0 md:py-1.5">{t('wiki.requestChanges')}</button>
-                <button onClick={() => onSubmitReview('approve')} className="min-h-11 rounded bg-[var(--status-success)] px-3 py-2 text-xs md:min-h-0 md:py-1.5">{t('wiki.approve')}</button>
-              </div>
+        <section className="min-w-0">
+          <div className="app-surface rounded-xl px-4 py-3 md:px-6">
+            <div className="app-text-muted mb-4 flex flex-wrap items-center gap-2 text-xs">
+              <span>{t('wiki.breadcrumbWorkspace')}</span>
+              <span>/</span>
+              <span>HN folder</span>
+              <span>/</span>
+              <span className="text-[var(--text-primary)]">{title || 'Untitled.md'}</span>
+              <button onClick={() => setShowPanel((v) => !v)} className="app-button-secondary ml-auto rounded-md px-2 py-1 text-xs">Annotations</button>
             </div>
-          )}
-        </div>
+
+            <input
+              value={title}
+              onChange={(e) => { setTitle(e.target.value); setIsDirty(true) }}
+              className="app-document-title mb-4"
+            />
+
+            <div className="app-document-editor">
+              <EditorProvider>
+                <Toolbar>
+                  <BtnUndo />
+                  <BtnRedo />
+                  <Separator />
+                  <BtnBold />
+                  <BtnItalic />
+                  <BtnBulletList />
+                  <BtnLink />
+                </Toolbar>
+                <Editor
+                  value={html}
+                  onChange={(e) => {
+                    setHtml(e.target.value)
+                    setIsDirty(true)
+                  }}
+                  containerProps={{}}
+                />
+              </EditorProvider>
+            </div>
+
+            <div className="app-muted-panel mt-4 rounded-lg p-3">
+              <div className="app-kicker mb-2">{t('wiki.annotateSelection')}</div>
+              <textarea value={annotationComment} onChange={(e) => setAnnotationComment(e.target.value)} placeholder={t('wiki.annotationCommentPlaceholder')} className="app-field min-h-20 w-full rounded p-2 text-sm" />
+              <button onClick={onAddAnnotation} className="app-button-secondary mt-2 w-full rounded px-3 py-2 text-sm">{t('wiki.addAnnotationFromSelection')}</button>
+            </div>
+
+            <div className="mt-4 flex items-center gap-2 border-t border-[var(--border-default)] pt-3">
+              <button onClick={onSave} className="app-button-primary rounded px-4 py-2 text-xs">{t('wiki.save')}</button>
+              <span className="app-text-faint text-xs">{saveState}</span>
+            </div>
+          </div>
+        </section>
+
+        {showPanel && (
+          <aside className="app-surface h-[calc(100vh-2rem)] overflow-hidden rounded-xl">
+            <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-3">
+              <b className="text-sm">Annotations</b>
+              <span className="rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-xs">{annotations.length}</span>
+              <button className="ml-auto app-button-secondary rounded px-2 py-1 text-xs" onClick={() => setShowPanel(false)}>✕</button>
+            </div>
+            <div className="flex gap-2 border-b border-[var(--border-default)] px-3 py-2 text-xs">
+              <button className={`rounded px-2 py-1 ${annotationTab === 'open' ? 'bg-[var(--bg-elevated)]' : ''}`} onClick={() => setAnnotationTab('open')}>Open ({annotations.length})</button>
+              <button className={`rounded px-2 py-1 ${annotationTab === 'resolved' ? 'bg-[var(--bg-elevated)]' : ''}`} onClick={() => setAnnotationTab('resolved')}>Resolved (0)</button>
+            </div>
+            <div className="space-y-2 overflow-auto p-3">
+              {annotations.length === 0 ? (
+                <div className="app-text-muted rounded-lg border border-[var(--border-default)] p-3 text-xs">Select text and add comment to create annotation.</div>
+              ) : (
+                annotations.map((a) => (
+                  <div key={a.id} className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-muted)] p-3">
+                    <div className="mb-1 text-[11px] app-text-faint">{a.when}</div>
+                    <div className="mb-2 rounded bg-[rgba(246,200,77,0.22)] px-2 py-1 text-xs">{a.quote}</div>
+                    <p className="text-sm leading-5">{a.body}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </aside>
+        )}
       </div>
     </main>
   )

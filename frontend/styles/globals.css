@@ -10,9 +10,10 @@
   --bg-muted: #12131b;
   --border-default: #2a2b33;
   --border-strong: #3b3d4a;
-  --accent: #6366f1;
-  --accent-muted: #2a2f55;
-  --accent-hover: #6b6dff;
+  --accent: #6e5cff;
+  --accent-muted: rgba(110, 92, 255, 0.18);
+  --accent-hover: #7e6dff;
+  --accent-soft: rgba(110, 92, 255, 0.18);
   --text-primary: #e8e8ef;
   --text-secondary: #cbd5e1;
   --text-muted: #94a3b8;
@@ -63,8 +64,46 @@ select {
 
   .app-surface {
     border: 1px solid var(--border-default);
-    background: var(--bg-surface);
-    box-shadow: var(--shadow-surface);
+    background: #15171d;
+    box-shadow: 0 18px 44px rgb(0 0 0 / 0.35);
+  }
+
+  .app-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .app-logo-tile {
+    width: 22px;
+    height: 22px;
+    border-radius: 7px;
+    display: grid;
+    place-items: center;
+    background: linear-gradient(135deg, #8a7bff, #5b48ff);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .app-file-row {
+    display: block;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    padding: 0.4rem 0.55rem;
+    color: var(--text-secondary);
+    font-size: 0.86rem;
+  }
+
+  .app-file-row:hover {
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-primary);
+  }
+
+  .app-file-row.is-active {
+    background: var(--accent-soft);
+    border-color: rgba(110, 92, 255, 0.35);
+    color: #fff;
   }
 
   .app-elevated {
@@ -147,8 +186,8 @@ select {
     width: 100%;
     border: 0;
     background: transparent;
-    color: var(--text-primary);
-    font-size: 2rem;
+    color: #f2f3f7;
+    font-size: 2.1rem;
     font-weight: 700;
     line-height: 1.15;
     outline: none;
@@ -164,9 +203,10 @@ select {
 
   .app-document-editor .rsw-editor {
     min-height: 58vh;
-    border: 1px solid var(--border-default);
-    border-radius: 0.5rem;
-    background: var(--bg-field);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 0.9rem;
+    background: #1a1c22;
+    box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(255, 255, 255, 0.02);
   }
 
   .app-document-editor .rsw-toolbar {

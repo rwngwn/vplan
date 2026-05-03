@@ -72,4 +72,55 @@ test('keeps the selected text highlight visible while typing a wiki comment', as
 
   await expect(commentTextarea).toHaveValue('Keep this selection highlighted while I type.')
   await expect(highlight.first()).toBeVisible()
+
+  await page.getByRole('button', { name: 'Save' }).click()
+  await expect(page.getByText('Keep this selection highlighted while I type.')).toBeVisible()
+})
+
+test('saves annotation when selected quote spans multiple lines', async ({ page }) => {
+  const multiLineBody = 'First line with selected part.\n\nSecond line continues selection here.'
+
+  await page.route('**/api/knowledge/notes', async (route) => {
+    if (route.request().method() !== 'GET') return route.fallback()
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify([{ id: 'demo', title: 'Demo.md', body: multiLineBody, created_at: '2026-05-03T00:00:00.000Z', updated_at: '2026-05-03T00:00:00.000Z' }])
+    })
+  })
+
+  await page.goto('/wiki/demo')
+  const editorShell = page.getByTestId('wiki-editor-shell')
+  await expect(editorShell).toBeVisible()
+
+  await editorShell.evaluate((node) => {
+    const root = node as HTMLElement
+    const firstP = root.querySelector('p')
+    const secondP = root.querySelectorAll('p')[1]
+    if (!firstP || !secondP) throw new Error('Expected two paragraphs in editor')
+
+    const firstText = document.createTreeWalker(firstP, NodeFilter.SHOW_TEXT).nextNode()
+    const secondText = document.createTreeWalker(secondP, NodeFilter.SHOW_TEXT).nextNode()
+    if (!firstText?.textContent || !secondText?.textContent) throw new Error('Missing text nodes')
+
+    const start = firstText.textContent.indexOf('selected part')
+    const end = secondText.textContent.indexOf('selection') + 'selection'.length
+    if (start < 0 || end <= 0) throw new Error('Selection markers not found')
+
+    const range = document.createRange()
+    range.setStart(firstText, start)
+    range.setEnd(secondText, end)
+
+    const selection = window.getSelection()
+    selection?.removeAllRanges()
+    selection?.addRange(range)
+    root.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
+    document.dispatchEvent(new Event('selectionchange', { bubbles: true }))
+  })
+
+  await page.getByTestId('wiki-selection-comment-button').click()
+  const commentTextarea = page.getByTestId('wiki-comment-textarea')
+  await commentTextarea.fill('Multiline quote should still become annotation')
+  await page.getByRole('button', { name: 'Save' }).click()
+
+  await expect(page.getByText('Multiline quote should still become annotation')).toBeVisible()
 })

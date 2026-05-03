@@ -141,7 +141,7 @@ export default function WikiNotePage() {
   }
 
   const annotations = useMemo(() => {
-    const matches = [...markdown.matchAll(/\[\[agent:\s*(.*?)\s*\|\s*quote:\s*(.*?)\]\]/gi)]
+    const matches = [...markdown.matchAll(/\[\[agent:\s*([\s\S]*?)\s*\|\s*quote:\s*([\s\S]*?)\]\]/gi)]
     return matches.map((m, i) => ({
       id: `anno-${i + 1}`,
       body: m[1]?.trim() || '',

@@ -2,10 +2,14 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from difflib import unified_diff
+import os
+from pathlib import Path
+import re
+import sqlite3
 from uuid import uuid4
 
 from .auto_analysis import AutoAnalysisPipeline
-from .models import CreateKnowledgeNoteRequest, CreateTaskRequest, KnowledgeNote, Task, TaskEvent, TaskStatus, UpdateKnowledgeNoteRequest, UpdateTaskRequest
+from .models import CreateKnowledgeFolderRequest, CreateKnowledgeNoteRequest, CreateTaskRequest, KnowledgeFolder, KnowledgeNote, Task, TaskEvent, TaskStatus, UpdateKnowledgeFolderRequest, UpdateKnowledgeNoteRequest, UpdateTaskRequest
 
 _ALLOWED_TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
     TaskStatus.open: {TaskStatus.in_progress, TaskStatus.blocked, TaskStatus.cancelled},
@@ -18,12 +22,13 @@ _ALLOWED_TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
 
 
 class TaskStore:
-    def __init__(self) -> None:
+    def __init__(self, knowledge_db_path: str | None = None) -> None:
         self._tasks: dict[str, Task] = {}
         self._workspace_docs: dict[str, str] = {}
         self._workspace_revisions: dict[str, list[dict]] = {}
         self._reviews: dict[str, list[dict]] = {}
         self._notes: dict[str, KnowledgeNote] = {}
+        self._folders: dict[str, KnowledgeFolder] = {}
         self._telemetry: dict[str, int] = {
             "status_transition_invalid_attempts": 0,
             "telegram_to_task_success": 0,
@@ -32,6 +37,11 @@ class TaskStore:
         }
         self._auto_analysis = AutoAnalysisPipeline(self._telemetry)
         self._analyses: dict[str, list[dict]] = {}
+
+        db_from_env = os.getenv("KNOWLEDGE_DB_PATH", "/tmp/knowledge.db")
+        self._knowledge_db_path = knowledge_db_path or db_from_env
+        self._init_knowledge_db()
+        self._load_knowledge_from_db()
 
     def list_tasks(self) -> list[Task]:
         return list(self._tasks.values())
@@ -184,12 +194,175 @@ class TaskStore:
 
         return {"task_id": task_id, "latest_revision_id": latest["revision_id"], "feedback_prompt": "\n".join(lines)}
 
+    def _db_conn(self) -> sqlite3.Connection:
+        return sqlite3.connect(self._knowledge_db_path)
+
+    def _init_knowledge_db(self) -> None:
+        db_path = Path(self._knowledge_db_path)
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        with self._db_conn() as conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS knowledge_folders (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    slug TEXT NOT NULL,
+                    parent_id TEXT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS knowledge_notes (
+                    id TEXT PRIMARY KEY,
+                    title TEXT NOT NULL,
+                    body TEXT NOT NULL,
+                    folder_id TEXT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+                """
+            )
+
+    def _load_knowledge_from_db(self) -> None:
+        with self._db_conn() as conn:
+            folder_rows = conn.execute(
+                "SELECT id, name, slug, parent_id, created_at, updated_at FROM knowledge_folders"
+            ).fetchall()
+            note_rows = conn.execute(
+                "SELECT id, title, body, folder_id, created_at, updated_at FROM knowledge_notes"
+            ).fetchall()
+
+        for row in folder_rows:
+            folder = KnowledgeFolder(
+                id=row[0],
+                name=row[1],
+                slug=row[2],
+                parent_id=row[3],
+                created_at=row[4],
+                updated_at=row[5],
+            )
+            self._folders[folder.id] = folder
+
+        for row in note_rows:
+            note = KnowledgeNote(
+                id=row[0],
+                title=row[1],
+                body=row[2],
+                folder_id=row[3],
+                created_at=row[4],
+                updated_at=row[5],
+            )
+            self._notes[note.id] = note
+
+    def _persist_folder(self, folder: KnowledgeFolder) -> None:
+        with self._db_conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO knowledge_folders (id, name, slug, parent_id, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    name=excluded.name,
+                    slug=excluded.slug,
+                    parent_id=excluded.parent_id,
+                    updated_at=excluded.updated_at
+                """,
+                (folder.id, folder.name, folder.slug, folder.parent_id, folder.created_at, folder.updated_at),
+            )
+
+    def _persist_note(self, note: KnowledgeNote) -> None:
+        with self._db_conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO knowledge_notes (id, title, body, folder_id, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    title=excluded.title,
+                    body=excluded.body,
+                    folder_id=excluded.folder_id,
+                    updated_at=excluded.updated_at
+                """,
+                (note.id, note.title, note.body, note.folder_id, note.created_at, note.updated_at),
+            )
+
+
+    @staticmethod
+    def _slugify(name: str) -> str:
+        slug = re.sub(r"[^a-z0-9]+", "-", name.strip().lower())
+        slug = re.sub(r"-+", "-", slug).strip("-")
+        return slug or "folder"
+
+    def list_folders(self) -> list[KnowledgeFolder]:
+        return list(self._folders.values())
+
+    def _ensure_folder_exists(self, folder_id: str | None) -> None:
+        if folder_id is None:
+            return
+        if folder_id not in self._folders:
+            raise KeyError(folder_id)
+
+    def _find_folder_by_slug(self, slug: str, parent_id: str | None = None) -> KnowledgeFolder | None:
+        for f in self._folders.values():
+            if f.slug == slug and f.parent_id == parent_id:
+                return f
+        return None
+
+    def create_folder(self, payload: CreateKnowledgeFolderRequest) -> KnowledgeFolder:
+        parent_id = payload.parent_id
+        self._ensure_folder_exists(parent_id)
+        slug = self._slugify(payload.name)
+        existing = self._find_folder_by_slug(slug, parent_id)
+        if existing is not None:
+            return existing
+        folder = KnowledgeFolder(id=str(uuid4()), name=payload.name.strip(), slug=slug, parent_id=parent_id)
+        self._folders[folder.id] = folder
+        self._persist_folder(folder)
+        return folder
+
+    def update_folder(self, folder_id: str, payload: UpdateKnowledgeFolderRequest) -> KnowledgeFolder:
+        folder = self._folders.get(folder_id)
+        if folder is None:
+            raise KeyError(folder_id)
+        if payload.parent_id is not None:
+            self._ensure_folder_exists(payload.parent_id)
+            folder.parent_id = payload.parent_id
+        if payload.name is not None:
+            folder.name = payload.name.strip()
+            folder.slug = self._slugify(payload.name)
+        folder.updated_at = datetime.now(timezone.utc).isoformat()
+        self._persist_folder(folder)
+        return folder
+
+    def _derive_folder_from_title(self, title: str) -> KnowledgeFolder | None:
+        if "/" not in title:
+            return None
+        prefix = title.split("/", 1)[0].strip()
+        if not prefix:
+            return None
+        return self.create_folder(CreateKnowledgeFolderRequest(name=prefix))
+
     def list_notes(self) -> list[KnowledgeNote]:
-        return list(self._notes.values())
+        notes = list(self._notes.values())
+        for note in notes:
+            if note.folder_id is None:
+                derived = self._derive_folder_from_title(note.title)
+                if derived is not None:
+                    note.folder_id = derived.id
+                    note.updated_at = datetime.now(timezone.utc).isoformat()
+                    self._persist_note(note)
+        return notes
 
     def create_note(self, payload: CreateKnowledgeNoteRequest) -> KnowledgeNote:
-        note = KnowledgeNote(id=str(uuid4()), title=payload.title, body=payload.body)
+        folder_id = payload.folder_id
+        if folder_id is None:
+            derived = self._derive_folder_from_title(payload.title)
+            folder_id = derived.id if derived else None
+        self._ensure_folder_exists(folder_id)
+        note = KnowledgeNote(id=str(uuid4()), title=payload.title, body=payload.body, folder_id=folder_id)
         self._notes[note.id] = note
+        self._persist_note(note)
         return note
 
     def update_note(self, note_id: str, payload: UpdateKnowledgeNoteRequest) -> KnowledgeNote:
@@ -200,7 +373,11 @@ class TaskStore:
             note.title = payload.title
         if payload.body is not None:
             note.body = payload.body
+        if payload.folder_id is not None:
+            self._ensure_folder_exists(payload.folder_id)
+            note.folder_id = payload.folder_id
         note.updated_at = datetime.now(timezone.utc).isoformat()
+        self._persist_note(note)
         return note
 
     def telemetry_snapshot(self) -> dict[str, int]:

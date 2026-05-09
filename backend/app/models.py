@@ -70,10 +70,30 @@ class TransitionRequest(BaseModel):
     note: str | None = None
 
 
+class KnowledgeFolder(BaseModel):
+    id: str
+    name: str
+    slug: str
+    parent_id: str | None = None
+    created_at: str = Field(default_factory=utcnow_iso)
+    updated_at: str = Field(default_factory=utcnow_iso)
+
+
+class CreateKnowledgeFolderRequest(BaseModel):
+    name: str
+    parent_id: str | None = None
+
+
+class UpdateKnowledgeFolderRequest(BaseModel):
+    name: str | None = None
+    parent_id: str | None = None
+
+
 class KnowledgeNote(BaseModel):
     id: str
     title: str
     body: str
+    folder_id: str | None = None
     created_at: str = Field(default_factory=utcnow_iso)
     updated_at: str = Field(default_factory=utcnow_iso)
 
@@ -81,8 +101,10 @@ class KnowledgeNote(BaseModel):
 class CreateKnowledgeNoteRequest(BaseModel):
     title: str
     body: str = ""
+    folder_id: str | None = None
 
 
 class UpdateKnowledgeNoteRequest(BaseModel):
     title: str | None = None
     body: str | None = None
+    folder_id: str | None = None

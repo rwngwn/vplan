@@ -27,10 +27,20 @@ export type WorkspaceRevision = {
   annotations_count: number
 }
 
+export type KnowledgeFolder = {
+  id: string
+  name: string
+  slug: string
+  parent_id: string | null
+  created_at: string
+  updated_at: string
+}
+
 export type KnowledgeNote = {
   id: string
   title: string
   body: string
+  folder_id: string | null
   created_at: string
   updated_at: string
 }
@@ -127,11 +137,11 @@ export async function fetchNotes(): Promise<KnowledgeNote[]> {
   return res.json()
 }
 
-export async function createNote(title: string, body = ''): Promise<KnowledgeNote> {
+export async function createNote(title: string, body = '', folder_id?: string | null): Promise<KnowledgeNote> {
   const res = await fetch(`${API_BASE}/knowledge/notes`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title, body }),
+    body: JSON.stringify({ title, body, folder_id: folder_id ?? null }),
   })
   if (!res.ok) throw new Error(t('api.errors.createNote', res.status))
   return res.json()
@@ -164,5 +174,22 @@ export async function importHnDigests(limit = 10, path = '/data/hn-digests'): Pr
     body: JSON.stringify({ limit, path }),
   })
   if (!res.ok) throw new Error(t('api.errors.importHn', res.status))
+  return res.json()
+}
+
+
+export async function fetchFolders(): Promise<KnowledgeFolder[]> {
+  const res = await fetch(`${API_BASE}/knowledge/folders`)
+  if (!res.ok) throw new Error(t('api.errors.fetchNotes', res.status))
+  return res.json()
+}
+
+export async function createFolder(name: string, parent_id?: string | null): Promise<KnowledgeFolder> {
+  const res = await fetch(`${API_BASE}/knowledge/folders`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, parent_id: parent_id ?? null }),
+  })
+  if (!res.ok) throw new Error(`Failed to create folder (${res.status})`)
   return res.json()
 }

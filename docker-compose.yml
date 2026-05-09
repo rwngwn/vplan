@@ -22,10 +22,12 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://app:app@db:5432/app
+      KNOWLEDGE_DB_PATH: /data/state/knowledge.db
     ports:
       - "8000:8000"
     volumes:
       - /home/hermes/.hermes/cron/output:/data/hn-digests:ro
+      - knowledge_data:/data/state
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz', timeout=2).read()"]
       interval: 10s
@@ -42,4 +44,6 @@ services:
 
 volumes:
   db_data:
+    driver: local
+  knowledge_data:
     driver: local

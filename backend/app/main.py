@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 from .hn_digest_import import load_digests_from_dir
 from .markdown_workspace import parse_inline_annotations, render_task_markdown
-from .models import CreateKnowledgeNoteRequest, CreateTaskRequest, TransitionRequest, UpdateKnowledgeNoteRequest, UpdateTaskRequest
+from .models import CreateKnowledgeFolderRequest, CreateKnowledgeNoteRequest, CreateTaskRequest, TransitionRequest, UpdateKnowledgeFolderRequest, UpdateKnowledgeNoteRequest, UpdateTaskRequest
 from .task_store import TaskStore
 from .telegram_ingest import TelegramIngestService
 
@@ -69,6 +69,28 @@ async def update_task(task_id: str, payload: UpdateTaskRequest):
     except KeyError:
         raise HTTPException(status_code=404, detail="task not found")
 
+
+
+
+@app.get("/knowledge/folders")
+async def list_folders():
+    return store.list_folders()
+
+
+@app.post("/knowledge/folders")
+async def create_folder(payload: CreateKnowledgeFolderRequest):
+    try:
+        return store.create_folder(payload)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="parent folder not found")
+
+
+@app.patch("/knowledge/folders/{folder_id}")
+async def update_folder(folder_id: str, payload: UpdateKnowledgeFolderRequest):
+    try:
+        return store.update_folder(folder_id, payload)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="folder not found")
 
 @app.get("/knowledge/notes")
 async def list_notes():

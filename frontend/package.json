@@ -12,6 +12,10 @@
   },
   "dependencies": {
     "autoprefixer": "^10.x",
+    "@tiptap/extension-link": "^2.11.5",
+    "@tiptap/extension-underline": "^2.11.5",
+    "@tiptap/react": "^2.11.5",
+    "@tiptap/starter-kit": "^2.11.5",
     "marked": "^18.0.3",
     "next": "14.x",
     "postcss": "^8.x",

@@ -11,20 +11,15 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@blocknote/core": "^0.23.0",
+    "@blocknote/react": "^0.23.0",
     "autoprefixer": "^10.x",
-    "@tiptap/extension-link": "^2.11.5",
-    "@tiptap/extension-underline": "^2.11.5",
-    "@tiptap/react": "^2.11.5",
-    "@tiptap/starter-kit": "^2.11.5",
-    "marked": "^18.0.3",
     "next": "14.x",
     "postcss": "^8.x",
     "react": "18.x",
     "react-dom": "18.x",
-    "react-simple-wysiwyg": "^3.4.1",
     "swr": "^2.3.3",
-    "tailwindcss": "^3.x",
-    "turndown": "^7.2.4"
+    "tailwindcss": "^3.x"
   },
   "devDependencies": {
     "@playwright/test": "^1.57.0",

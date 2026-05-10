@@ -1,20 +1,13 @@
 import { useRouter } from 'next/router'
+import dynamic from 'next/dynamic'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import useSWR from 'swr'
-import TurndownService from 'turndown'
-import { marked } from 'marked'
-import { EditorContent, useEditor, type Editor } from '@tiptap/react'
-import StarterKit from '@tiptap/starter-kit'
-import Underline from '@tiptap/extension-underline'
-import Link from '@tiptap/extension-link'
 
 import { WikiAnnotationsPanel } from '../../components/wiki/WikiAnnotationsPanel'
 import { WikiMobileSheet } from '../../components/wiki/WikiMobileSheet'
 import { WikiSidebar } from '../../components/wiki/WikiSidebar'
 import { createFolder, createNote, fetchFolders, fetchNotes, updateNote, type KnowledgeNote } from '../../lib/api'
 import { t } from '../../lib/i18n'
-
-const td = new TurndownService()
 
 function stripHnPromptTemplate(raw: string): string {
   if (!raw) return raw
@@ -47,36 +40,6 @@ function stripHnPromptTemplate(raw: string): string {
   }).join('\n')
 }
 
-function ToolbarButton({ active, onClick, title, testId, label }: { active?: boolean; onClick: () => void; title: string; testId?: string; label: string }) {
-  return (
-    <button
-      type="button"
-      title={title}
-      data-testid={testId}
-      className={`wiki-format-btn ${active ? 'is-active' : ''}`}
-      onMouseDown={(e) => e.preventDefault()}
-      onClick={onClick}
-    >
-      {label}
-    </button>
-  )
-}
-
-type SlashItem = {
-  id: string
-  label: string
-  aliases: string[]
-  run: (editor: Editor) => void
-}
-
-const SLASH_ITEMS: SlashItem[] = [
-  { id: 'heading-1', label: 'Heading 1', aliases: ['h1', 'title', 'nadpis'], run: (editor) => editor.chain().focus().toggleHeading({ level: 1 }).run() },
-  { id: 'heading-2', label: 'Heading 2', aliases: ['h2', 'subheading'], run: (editor) => editor.chain().focus().toggleHeading({ level: 2 }).run() },
-  { id: 'bullet-list', label: 'Bullet list', aliases: ['bullet', 'ul', 'list'], run: (editor) => editor.chain().focus().toggleBulletList().run() },
-  { id: 'numbered-list', label: 'Numbered list', aliases: ['numbered', 'ol', '1'], run: (editor) => editor.chain().focus().toggleOrderedList().run() },
-  { id: 'blockquote', label: 'Quote', aliases: ['quote', 'blockquote', 'citace'], run: (editor) => editor.chain().focus().toggleBlockquote().run() },
-  { id: 'code-block', label: 'Code block', aliases: ['code', 'snippet'], run: (editor) => editor.chain().focus().toggleCodeBlock().run() }
-]
 
 export default function WikiNotePage() {
   const router = useRouter()
@@ -86,7 +49,7 @@ export default function WikiNotePage() {
   const note = useMemo(() => (notes || []).find((n) => n.id === noteId), [notes, noteId])
 
   const [title, setTitle] = useState('')
-  const [html, setHtml] = useState('')
+  const [markdownBody, setMarkdownBody] = useState('')
   const [saveState, setSaveState] = useState('')
   const [isDirty, setIsDirty] = useState(false)
   const [showPanel, setShowPanel] = useState(true)
@@ -96,78 +59,26 @@ export default function WikiNotePage() {
   const [annotationTab, setAnnotationTab] = useState<'open' | 'resolved'>('open')
   const [resolvedAnnotationIds, setResolvedAnnotationIds] = useState<string[]>([])
   const editorShellRef = useRef<HTMLDivElement | null>(null)
+  const [pendingAnnotation, setPendingAnnotation] = useState<{ quote: string; comment: string } | null>(null)
   const [selectionToolbar, setSelectionToolbar] = useState<{ x: number; y: number; quote: string } | null>(null)
   const [commentPopover, setCommentPopover] = useState<{ x: number; y: number; quote: string } | null>(null)
   const [draftHighlightRects, setDraftHighlightRects] = useState<Array<{ left: number; top: number; width: number; height: number }>>([])
   const [contextComment, setContextComment] = useState('')
   const [researchState, setResearchState] = useState<'idle' | 'running' | 'done' | 'error'>('idle')
-  const [mobileSheet, setMobileSheet] = useState<'files' | 'annotations' | 'comment' | 'format' | null>(null)
-  const [slashMenu, setSlashMenu] = useState<{ x: number; y: number; query: string } | null>(null)
-
-  const editor = useEditor({
-    immediatelyRender: false,
-    extensions: [StarterKit, Underline, Link.configure({ openOnClick: false })],
-    content: '',
-    onSelectionUpdate: ({ editor: e }) => {
-      const { from, to } = e.state.selection
-      if (from === to) {
-        setSelectionToolbar(null)
-        return
-      }
-      setSlashMenu(null)
-      const quote = e.state.doc.textBetween(from, to, ' ').trim()
-      if (quote.length < 2) {
-        setSelectionToolbar(null)
-        return
-      }
-      const host = editorShellRef.current
-      if (!host) return
-      const hostRect = host.getBoundingClientRect()
-      const start = e.view.coordsAtPos(from)
-      const end = e.view.coordsAtPos(to)
-      const x = ((start.left + end.left) / 2) - hostRect.left
-      const y = Math.min(start.top, end.top) - hostRect.top - 10
-      setSelectionToolbar({ x, y, quote })
-    },
-    onUpdate: ({ editor: e }) => {
-      setHtml(e.getHTML())
-      setIsDirty(true)
-
-      const { from, to, $from } = e.state.selection
-      if (from !== to) {
-        setSlashMenu(null)
-        return
-      }
-      const beforeCursor = $from.parent.textBetween(0, $from.parentOffset, ' ')
-      const slashMatch = beforeCursor.match(/(?:^|\s)\/([a-z0-9-]*)$/i)
-      if (!slashMatch) {
-        setSlashMenu(null)
-        return
-      }
-      const query = (slashMatch[1] || '').toLowerCase()
-      const host = editorShellRef.current
-      if (!host) return
-      const hostRect = host.getBoundingClientRect()
-      const cursor = e.view.coordsAtPos(from)
-      setSlashMenu({ x: cursor.left - hostRect.left, y: cursor.bottom - hostRect.top + 8, query })
-    }
-  })
-
-  const markdown = useMemo(() => td.turndown(html || ''), [html])
+  const [mobileSheet, setMobileSheet] = useState<'files' | 'annotations' | 'comment' | null>(null)
+  const selectionToolbarRetryFrameRef = useRef<number | null>(null)
 
   const persistWiki = useCallback(async () => {
     if (!noteId) return
-    await updateNote(noteId, { title, body: markdown })
-  }, [noteId, title, markdown])
+    await updateNote(noteId, { title, body: markdownBody })
+  }, [noteId, title, markdownBody])
 
   useEffect(() => {
     setTitle(note?.title || '')
     const cleanedBody = stripHnPromptTemplate(note?.body || '')
-    const nextHtml = marked.parse(cleanedBody) as string
-    setHtml(nextHtml)
-    if (editor) editor.commands.setContent(nextHtml, false)
+    setMarkdownBody(cleanedBody)
     setIsDirty(false)
-  }, [note?.id, note?.title, note?.body, editor])
+  }, [note?.id, note?.title, note?.body])
 
   useEffect(() => {
     if (!isDirty || !noteId) return
@@ -227,7 +138,7 @@ export default function WikiNotePage() {
   }
 
   const annotations = useMemo(() => {
-    const normalized = markdown.replace(/\\\[/g, '[').replace(/\\\]/g, ']')
+    const normalized = markdownBody.replace(/\\\[/g, '[').replace(/\\\]/g, ']')
     const matches = [...normalized.matchAll(/\[\[agent:\s*([\s\S]*?)\s*\|\s*quote:\s*([\s\S]*?)\]\]/gi)]
     return matches.map((m, i) => ({
       id: `anno-${i + 1}`,
@@ -237,14 +148,12 @@ export default function WikiNotePage() {
       when: 'now',
       author: 'You'
     }))
-  }, [markdown, resolvedAnnotationIds])
+  }, [markdownBody, resolvedAnnotationIds])
 
   const appendAnnotation = (quoteText: string, commentText: string) => {
-    if (!editor) return
     const safeQuote = quoteText.replace(/</g, '&lt;').replace(/>/g, '&gt;')
     const safeComment = commentText.trim().replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    editor.chain().focus('end').insertContent(`<p>[[agent: ${safeComment} | quote: ${safeQuote}]]</p>`).run()
-    setHtml(editor.getHTML())
+    setPendingAnnotation({ quote: safeQuote, comment: safeComment })
     setIsDirty(true)
     setShowPanel(true)
     setAnnotationTab('open')
@@ -261,7 +170,6 @@ export default function WikiNotePage() {
     }
     setContextComment('')
     setSelectionToolbar(null)
-    setSlashMenu(null)
     setCommentPopover(position ? { x: position.x, y: position.y, quote } : { x: 0, y: 0, quote })
     if (globalThis.matchMedia?.('(max-width: 1023px)').matches) setMobileSheet('comment')
   }
@@ -274,7 +182,6 @@ export default function WikiNotePage() {
     setContextComment('')
     setDraftHighlightRects([])
     setMobileSheet(null)
-    editor?.commands.blur()
   }
 
   const cancelContextComment = () => {
@@ -285,44 +192,31 @@ export default function WikiNotePage() {
   }
 
   const clearSelectionToolbar = () => {
-    editor?.commands.blur()
+    if (selectionToolbarRetryFrameRef.current !== null) {
+      globalThis.cancelAnimationFrame(selectionToolbarRetryFrameRef.current)
+      selectionToolbarRetryFrameRef.current = null
+    }
     globalThis.getSelection?.()?.removeAllRanges()
     setSelectionToolbar(null)
   }
+
+  useEffect(() => {
+    return () => {
+      if (selectionToolbarRetryFrameRef.current !== null) {
+        globalThis.cancelAnimationFrame(selectionToolbarRetryFrameRef.current)
+        selectionToolbarRetryFrameRef.current = null
+      }
+    }
+  }, [])
 
   const openAnnotations = useMemo(() => annotations.filter((a) => a.status === 'open'), [annotations])
   const resolvedAnnotations = useMemo(() => annotations.filter((a) => a.status === 'resolved'), [annotations])
   const visibleAnnotations = annotationTab === 'open' ? openAnnotations : resolvedAnnotations
 
-  const slashItems = useMemo(() => {
-    if (!slashMenu) return []
-    const q = slashMenu.query.trim()
-    return SLASH_ITEMS.filter((item) => {
-      if (!q) return true
-      return item.label.toLowerCase().includes(q) || item.aliases.some((a) => a.includes(q))
-    }).slice(0, 6)
-  }, [slashMenu])
-
-  const applySlashItem = useCallback((item: SlashItem) => {
-    if (!editor) return
-    item.run(editor)
-    setSlashMenu(null)
-  }, [editor])
-
   useEffect(() => {
-    if (!slashMenu) return
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setSlashMenu(null)
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [slashMenu])
-
-  useEffect(() => {
-    if (commentPopover) {
-      setSelectionToolbar(null)
-      setSlashMenu(null)
-    }
+      if (commentPopover) {
+        setSelectionToolbar(null)
+      }
   }, [commentPopover])
 
   const guessIntent = (text: string) => {
@@ -379,55 +273,65 @@ export default function WikiNotePage() {
 
             <input value={title} onChange={(e) => { setTitle(e.target.value); setIsDirty(true) }} className="app-document-title mb-3 lg:mb-4" data-testid="wiki-title-input" />
 
-            <div ref={editorShellRef} className="app-document-editor app-editor-shell relative" data-testid="wiki-editor-shell">
-              <div className="wiki-toolbar wiki-toolbar-desktop" data-testid="wiki-desktop-toolbar">
-                <ToolbarButton title="Undo" label="↶" onClick={() => editor?.chain().focus().undo().run()} />
-                <ToolbarButton title="Redo" label="↷" onClick={() => editor?.chain().focus().redo().run()} />
-                <ToolbarButton title="Bold" label="B" active={editor?.isActive('bold')} onClick={() => editor?.chain().focus().toggleBold().run()} />
-                <ToolbarButton title="Italic" label="I" active={editor?.isActive('italic')} onClick={() => editor?.chain().focus().toggleItalic().run()} />
-                <ToolbarButton title="Underline" label="U" active={editor?.isActive('underline')} onClick={() => editor?.chain().focus().toggleUnderline().run()} />
-                <ToolbarButton title="Strike through" label="S" active={editor?.isActive('strike')} onClick={() => editor?.chain().focus().toggleStrike().run()} />
-                <ToolbarButton title="Bullet list" label="•" active={editor?.isActive('bulletList')} onClick={() => editor?.chain().focus().toggleBulletList().run()} />
-                <ToolbarButton title="Numbered list" label="1." active={editor?.isActive('orderedList')} onClick={() => editor?.chain().focus().toggleOrderedList().run()} />
-                <ToolbarButton title="Link" label="🔗" active={editor?.isActive('link')} onClick={() => {
-                  const existing = editor?.getAttributes('link').href || ''
-                  const href = globalThis.prompt('URL', existing)
-                  if (!editor || href === null) return
-                  if (!href) editor.chain().focus().unsetLink().run()
-                  else editor.chain().focus().extendMarkRange('link').setLink({ href }).run()
-                }} />
-              </div>
+            <div ref={editorShellRef} className="app-document-editor app-editor-shell relative">
+              <WikiBlockEditorAdapter
+                markdown={markdownBody}
+                onMarkdownChange={(next) => {
+                  setMarkdownBody(next)
+                  setIsDirty(true)
+                }}
+                pendingAnnotation={pendingAnnotation}
+                onPendingAnnotationApplied={() => setPendingAnnotation(null)}
+                onSelectionQuoteChange={(quote, snapshot) => {
+                  const updateSelectionToolbar = (nextQuote: string, nextSnapshot: { quote: string; rect: { left: number; top: number; width: number; height: number } | null } | null, attempt: number) => {
+                    const host = editorShellRef.current
+                    const fallbackToolbar = () => {
+                      if (!host) {
+                        setSelectionToolbar(null)
+                        return
+                      }
+                      const hostRect = host.getBoundingClientRect()
+                      setSelectionToolbar({ x: hostRect.width / 2, y: 12, quote: nextQuote })
+                    }
 
+                    if (!host || !nextSnapshot || nextSnapshot.quote !== nextQuote || !nextSnapshot.rect) {
+                      if (attempt < 4) {
+                        selectionToolbarRetryFrameRef.current = globalThis.requestAnimationFrame(() => {
+                          selectionToolbarRetryFrameRef.current = null
+                          updateSelectionToolbar(nextQuote, nextSnapshot, attempt + 1)
+                        })
+                      } else {
+                        fallbackToolbar()
+                      }
+                      return
+                    }
 
-              <EditorContent editor={editor} />
+                    const hostRect = host.getBoundingClientRect()
+                    const validRect = nextSnapshot.rect
 
-              {slashMenu && slashItems.length > 0 && (
-                <div className="wiki-slash-menu" data-testid="wiki-slash-menu" style={{ left: slashMenu.x, top: slashMenu.y }}>
-                  {slashItems.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      data-testid={`wiki-slash-item-${item.id}`}
-                      className="wiki-slash-item"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => applySlashItem(item)}
-                    >
-                      <span>{item.label}</span>
-                      <span className="wiki-slash-hint">/{item.aliases[0]}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
+                    setSelectionToolbar({
+                      x: validRect.left + (validRect.width / 2) - hostRect.left,
+                      y: validRect.top - hostRect.top - 10,
+                      quote: nextQuote
+                    })
+                  }
 
-              <WikiMobileSheet title="Formátování" open={mobileSheet === 'format'} onClose={() => setMobileSheet(null)} testId="wiki-mobile-format-sheet">
-                <div className="wiki-mobile-more-toolbar" data-testid="wiki-mobile-more-toolbar">
-                  <ToolbarButton title="Underline" label="U" active={editor?.isActive('underline')} onClick={() => editor?.chain().focus().toggleUnderline().run()} />
-                  <ToolbarButton title="Strike through" label="S" active={editor?.isActive('strike')} onClick={() => editor?.chain().focus().toggleStrike().run()} />
-                  <ToolbarButton title="Numbered list" label="1." active={editor?.isActive('orderedList')} onClick={() => editor?.chain().focus().toggleOrderedList().run()} />
-                  <ToolbarButton title="Clear formatting" label="Tx" onClick={() => editor?.chain().focus().unsetAllMarks().clearNodes().run()} />
-                  <ToolbarButton title="Styles" label="H2" active={editor?.isActive('heading', { level: 2 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()} />
-                </div>
-              </WikiMobileSheet>
+                  if (!quote) {
+                    if (selectionToolbarRetryFrameRef.current !== null) {
+                      globalThis.cancelAnimationFrame(selectionToolbarRetryFrameRef.current)
+                      selectionToolbarRetryFrameRef.current = null
+                    }
+                    setSelectionToolbar(null)
+                    return
+                  }
+
+                  if (selectionToolbarRetryFrameRef.current !== null) {
+                    globalThis.cancelAnimationFrame(selectionToolbarRetryFrameRef.current)
+                    selectionToolbarRetryFrameRef.current = null
+                  }
+                  updateSelectionToolbar(quote, snapshot, 0)
+                }}
+              />
 
               {draftHighlightRects.map((rect, idx) => <div key={`draft-rect-${idx}`} className="wiki-draft-selection-highlight pointer-events-none absolute rounded-[3px] bg-amber-300/35 ring-1 ring-amber-200/45" data-testid="wiki-draft-selection-highlight" style={{ left: rect.left, top: rect.top, width: rect.width, height: rect.height }} />)}
 
@@ -462,8 +366,7 @@ export default function WikiNotePage() {
           <button className="app-button-primary rounded-md px-3 py-2 text-sm" data-testid="wiki-mobile-nav-comment" onMouseDown={(e) => e.preventDefault()} onClick={() => openCommentComposer(selectionToolbar.quote)}>Komentář</button>
           <button className="app-button-secondary rounded-md px-3 py-2 text-sm" data-testid="wiki-mobile-nav-copy" onMouseDown={(e) => e.preventDefault()} onClick={() => selectionToolbar.quote && navigator.clipboard?.writeText(selectionToolbar.quote)}>Kopírovat</button>
           <button className="app-button-secondary rounded-md px-3 py-2 text-sm" data-testid="wiki-mobile-nav-close" onMouseDown={(e) => e.preventDefault()} onClick={clearSelectionToolbar}>Zrušit</button>
-        </div> : <div className="grid grid-cols-3 gap-2">
-          <button className="app-button-secondary rounded-md px-3 py-2 text-sm" data-testid="wiki-mobile-nav-format" onClick={() => setMobileSheet('format')}>Aa</button>
+        </div> : <div className="grid grid-cols-2 gap-2">
           <button className="app-button-secondary rounded-md px-3 py-2 text-sm" data-testid="wiki-mobile-nav-comments" onClick={() => setMobileSheet('annotations')}>Komentáře <span className="ml-1 rounded-full bg-[var(--accent)] px-1.5 py-0.5 text-[10px]">{openAnnotations.length}</span></button>
           <button className="app-button-secondary rounded-md px-3 py-2 text-sm" data-testid="wiki-mobile-nav-files" onClick={() => setMobileSheet('files')}>Soubory</button>
         </div>}
@@ -477,3 +380,4 @@ export default function WikiNotePage() {
     </main>
   )
 }
+const WikiBlockEditorAdapter = dynamic(() => import('../../components/wiki/WikiBlockEditorAdapter').then((mod) => mod.WikiBlockEditorAdapter), { ssr: false })

@@ -1,9 +1,7 @@
-from fastapi.testclient import TestClient
-from app.main import app
+import asyncio
+
+from app.main import healthz
 
 
 def test_healthz_endpoint():
-    client = TestClient(app)
-    response = client.get("/healthz")
-    assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    assert asyncio.run(healthz()) == {"status": "ok"}

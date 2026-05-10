@@ -1,6 +1,13 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
+
+async function waitForSelectionAction(page: Page) {
+  const desktopButton = page.getByTestId('wiki-selection-comment-button')
+  const mobileButton = page.getByTestId('wiki-mobile-nav-comment')
+  await expect.poll(async () => (await desktopButton.count()) + (await mobileButton.count())).toBeGreaterThan(0)
+}
 
 test('keeps the selected text highlight visible while typing a wiki comment', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 })
   await page.route('**/api/knowledge/notes', async (route) => {
     if (route.request().method() !== 'GET') {
       await route.fallback()
@@ -59,7 +66,9 @@ test('keeps the selected text highlight visible while typing a wiki comment', as
     document.dispatchEvent(new Event('selectionchange', { bubbles: true }))
   })
 
+  await waitForSelectionAction(page)
   await expect(page.getByTestId('wiki-selection-toolbar')).toBeVisible()
+  await expect(page.getByTestId('wiki-selection-comment-button')).toBeVisible()
   await page.getByTestId('wiki-selection-comment-button').click()
 
   const highlight = page.locator('.wiki-draft-selection-highlight')
@@ -79,6 +88,7 @@ test('keeps the selected text highlight visible while typing a wiki comment', as
 })
 
 test('saves annotation for single-word selection', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 })
   const body = 'Tady testujeme slovo spolehlivosti v jedné větě.'
 
   await page.route('**/api/knowledge/notes', async (route) => {
@@ -113,6 +123,8 @@ test('saves annotation for single-word selection', async ({ page }) => {
     document.dispatchEvent(new Event('selectionchange', { bubbles: true }))
   })
 
+  await waitForSelectionAction(page)
+  await expect(page.getByTestId('wiki-selection-comment-button')).toBeVisible()
   await page.getByTestId('wiki-selection-comment-button').click()
   const commentTextarea = page.getByTestId('wiki-comment-textarea')
   await commentTextarea.fill('Komentář ke slovu')
@@ -123,6 +135,7 @@ test('saves annotation for single-word selection', async ({ page }) => {
 })
 
 test('saves annotation when selected quote spans multiple lines', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 })
   const multiLineBody = 'First line with selected part.\n\nSecond line continues selection here.'
 
   await page.route('**/api/knowledge/notes', async (route) => {
@@ -139,8 +152,9 @@ test('saves annotation when selected quote spans multiple lines', async ({ page 
 
   await editorShell.evaluate((node) => {
     const root = node as HTMLElement
-    const firstP = root.querySelector('p')
-    const secondP = root.querySelectorAll('p')[1]
+    const paragraphs = Array.from(root.querySelectorAll('p'))
+    const firstP = paragraphs.find((p) => p.textContent?.includes('selected part'))
+    const secondP = paragraphs.find((p) => p.textContent?.includes('selection here'))
     if (!firstP || !secondP) throw new Error('Expected two paragraphs in editor')
 
     const firstText = document.createTreeWalker(firstP, NodeFilter.SHOW_TEXT).nextNode()
@@ -162,6 +176,8 @@ test('saves annotation when selected quote spans multiple lines', async ({ page 
     document.dispatchEvent(new Event('selectionchange', { bubbles: true }))
   })
 
+  await waitForSelectionAction(page)
+  await expect(page.getByTestId('wiki-selection-comment-button')).toBeVisible()
   await page.getByTestId('wiki-selection-comment-button').click()
   const commentTextarea = page.getByTestId('wiki-comment-textarea')
   await commentTextarea.fill('Multiline quote should still become annotation')
@@ -171,7 +187,7 @@ test('saves annotation when selected quote spans multiple lines', async ({ page 
   await expect(page.locator('aside').filter({ hasText: 'Annotations' }).getByText('Multiline quote should still become annotation')).toBeVisible()
 })
 
-test('mobile uses bottom action bar and opens formatting from Aa sheet', async ({ page }) => {
+test('mobile bottom action bar excludes deprecated format sheet trigger', async ({ page }) => {
   const body = 'Mobile actions should stay in thumb zone at the bottom.'
 
   await page.setViewportSize({ width: 390, height: 844 })
@@ -186,24 +202,14 @@ test('mobile uses bottom action bar and opens formatting from Aa sheet', async (
 
   await page.goto('/wiki/demo')
 
-  await expect(page.getByTestId('wiki-desktop-toolbar')).toBeHidden()
-
   const bottomNav = page.getByTestId('wiki-mobile-bottom-nav')
-  await expect(bottomNav.getByTestId('wiki-mobile-nav-format')).toBeVisible()
+  await expect(bottomNav.getByTestId('wiki-mobile-nav-format')).toHaveCount(0)
   await expect(bottomNav.getByTestId('wiki-mobile-nav-comments')).toBeVisible()
   await expect(bottomNav.getByTestId('wiki-mobile-nav-files')).toBeVisible()
-
-  await bottomNav.getByTestId('wiki-mobile-nav-format').click()
-  const formatSheet = page.getByTestId('wiki-mobile-format-sheet')
-  await expect(formatSheet).toBeVisible()
-  await expect(formatSheet.getByTitle('Underline')).toBeVisible()
-  await expect(formatSheet.getByTitle('Strike through')).toBeVisible()
-  await expect(formatSheet.getByTitle('Numbered list')).toBeVisible()
-  await expect(formatSheet.getByTitle('Clear formatting')).toBeVisible()
-  await expect(formatSheet.getByTitle('Styles')).toBeVisible()
+  await expect(page.getByTestId('wiki-mobile-format-sheet')).toHaveCount(0)
 })
 
-test('shows slash menu and applies heading block command', async ({ page }) => {
+test('supports markdown-style heading command in block editor', async ({ page }) => {
   const body = 'Start writing here.'
 
   await page.route('**/api/knowledge/notes', async (route) => {
@@ -220,14 +226,70 @@ test('shows slash menu and applies heading block command', async ({ page }) => {
   const editorParagraph = editorShell.locator('p').first()
   await editorParagraph.click()
   await page.keyboard.press('Control+A')
-  await page.keyboard.type('/h1')
+  await page.keyboard.type('# Heading One')
+  await page.keyboard.press('Enter')
+  await expect(editorShell.locator('h1')).toContainText('Heading One')
+})
 
-  const slashMenu = page.getByTestId('wiki-slash-menu')
-  await expect(slashMenu).toBeVisible()
-  await expect(page.getByTestId('wiki-slash-item-heading-1')).toBeVisible()
+test('dedicated block editor keeps slash menu workflow disabled', async ({ page }) => {
+  const body = 'Slash menu should stay disabled in dedicated wiki editor mode.'
 
-  await page.getByTestId('wiki-slash-item-heading-1').click()
-  await expect(editorShell.locator('h1')).toContainText('h1')
+  await page.route('**/api/knowledge/notes', async (route) => {
+    if (route.request().method() !== 'GET') return route.fallback()
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify([{ id: 'demo', title: 'Slash.md', body, created_at: '2026-05-03T00:00:00.000Z', updated_at: '2026-05-03T00:00:00.000Z' }])
+    })
+  })
+
+  await page.goto('/wiki/demo')
+
+  const editorParagraph = page.getByTestId('wiki-editor-shell').locator('p').first()
+  await editorParagraph.click()
+  await page.keyboard.press('Control+A')
+  await page.keyboard.type('/heading')
+
+  await expect(page.locator('[class*="bn-slash-menu"]')).toHaveCount(0)
+  await expect(editorParagraph).toContainText('/heading')
+})
+
+test('dedicated block editor keeps block handle and formatting toolbar hidden', async ({ page }) => {
+  const body = 'Selecting this sentence should not open deprecated format controls.'
+
+  await page.route('**/api/knowledge/notes', async (route) => {
+    if (route.request().method() !== 'GET') return route.fallback()
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify([{ id: 'demo', title: 'Format.md', body, created_at: '2026-05-03T00:00:00.000Z', updated_at: '2026-05-03T00:00:00.000Z' }])
+    })
+  })
+
+  await page.goto('/wiki/demo')
+
+  const editorParagraph = page.getByTestId('wiki-editor-shell').locator('p').first()
+  await expect(editorParagraph).toContainText('Selecting this sentence')
+
+  await editorParagraph.evaluate((node) => {
+    const textNode = document.createTreeWalker(node, NodeFilter.SHOW_TEXT).nextNode()
+    if (!textNode?.textContent) throw new Error('Editor text missing')
+    const start = textNode.textContent.indexOf('Selecting this sentence')
+    if (start < 0) throw new Error('Selection text not found')
+
+    const range = document.createRange()
+    range.setStart(textNode, start)
+    range.setEnd(textNode, start + 'Selecting this sentence'.length)
+
+    const selection = window.getSelection()
+    selection?.removeAllRanges()
+    selection?.addRange(range)
+    node.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
+    document.dispatchEvent(new Event('selectionchange', { bubbles: true }))
+  })
+
+  await waitForSelectionAction(page)
+  await expect(page.getByTestId('wiki-selection-toolbar')).toBeVisible()
+  await expect(page.locator('[class*="bn-side-menu"]')).toHaveCount(0)
+  await expect(page.locator('[class*="bn-formatting-toolbar"]')).toHaveCount(0)
 })
 
 test('mobile selection opens comment sheet and persists annotation marker', async ({ page }) => {
@@ -266,7 +328,7 @@ test('mobile selection opens comment sheet and persists annotation marker', asyn
 
   await expect(page.getByTestId('wiki-mobile-topbar')).toBeVisible()
   await expect(page.getByTestId('wiki-mobile-bottom-nav')).toBeVisible()
-  await expect(page.getByTestId('wiki-mobile-bottom-nav').getByTestId('wiki-mobile-nav-format')).toBeVisible()
+  await expect(page.getByTestId('wiki-mobile-bottom-nav').getByTestId('wiki-mobile-nav-format')).toHaveCount(0)
   await expect(page.getByTestId('wiki-mobile-bottom-nav').getByTestId('wiki-mobile-nav-comments')).toBeVisible()
   await expect(page.getByTestId('wiki-mobile-bottom-nav').getByTestId('wiki-mobile-nav-files')).toBeVisible()
   await expect(page.locator('aside.app-sidebar')).toBeHidden()
@@ -294,9 +356,10 @@ test('mobile selection opens comment sheet and persists annotation marker', asyn
 
   await expect(page.getByTestId('wiki-selection-toolbar')).toBeHidden()
   const bottomNav = page.getByTestId('wiki-mobile-bottom-nav')
-  await expect(bottomNav.getByTestId('wiki-mobile-nav-format')).toBeHidden()
+  await expect(bottomNav.getByTestId('wiki-mobile-nav-format')).toHaveCount(0)
   await expect(bottomNav.getByTestId('wiki-mobile-nav-comments')).toBeHidden()
   await expect(bottomNav.getByTestId('wiki-mobile-nav-files')).toBeHidden()
+  await waitForSelectionAction(page)
   await expect(page.getByTestId('wiki-mobile-nav-comment')).toBeVisible()
   await expect(page.getByTestId('wiki-mobile-nav-copy')).toBeVisible()
   await expect(page.getByTestId('wiki-mobile-nav-close')).toBeVisible()
@@ -308,7 +371,7 @@ test('mobile selection opens comment sheet and persists annotation marker', asyn
   await page.getByTestId('wiki-mobile-comment-sheet').getByRole('button', { name: 'Uložit' }).click()
 
   await expect(page.getByTestId('wiki-mobile-comment-sheet')).toBeHidden()
-  await expect(bottomNav.getByTestId('wiki-mobile-nav-format')).toBeVisible()
+  await expect(bottomNav.getByTestId('wiki-mobile-nav-format')).toHaveCount(0)
   await expect(bottomNav.getByTestId('wiki-mobile-nav-comments')).toBeVisible()
   await expect(bottomNav.getByTestId('wiki-mobile-nav-files')).toBeVisible()
   await bottomNav.getByTestId('wiki-mobile-nav-comments').click()
@@ -353,13 +416,14 @@ test('mobile selection bottom nav can dismiss selection without opening sheets',
   })
 
   const bottomNav = page.getByTestId('wiki-mobile-bottom-nav')
+  await waitForSelectionAction(page)
   await expect(page.getByTestId('wiki-mobile-nav-comment')).toBeVisible()
   await expect(page.getByTestId('wiki-mobile-nav-copy')).toBeVisible()
   await page.getByTestId('wiki-mobile-nav-close').click()
 
   await expect(page.getByTestId('wiki-mobile-nav-comment')).toBeHidden()
   await expect(page.getByTestId('wiki-mobile-nav-copy')).toBeHidden()
-  await expect(bottomNav.getByTestId('wiki-mobile-nav-format')).toBeVisible()
+  await expect(bottomNav.getByTestId('wiki-mobile-nav-format')).toHaveCount(0)
   await expect(bottomNav.getByTestId('wiki-mobile-nav-comments')).toBeVisible()
   await expect(bottomNav.getByTestId('wiki-mobile-nav-files')).toBeVisible()
   await expect(page.getByTestId('wiki-mobile-comment-sheet')).toBeHidden()

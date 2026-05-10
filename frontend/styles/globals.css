@@ -217,8 +217,22 @@ select {
     padding: 0.45rem;
   }
 
-  .app-document-editor .wiki-toolbar-mobile {
-    display: none;
+  .app-document-editor .wiki-blocknote-root {
+    min-height: 58vh;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 0.9rem;
+    background: #1a1c22;
+    box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+    overflow: hidden;
+  }
+
+  .app-document-editor .wiki-blocknote-editor {
+    min-height: 58vh;
+    color: #e7e8ec;
+  }
+
+  .app-document-editor .wiki-blocknote-editor .bn-container {
+    background: transparent;
   }
 
   .app-document-editor .rsw-btn {
@@ -381,20 +395,6 @@ select {
       border-radius: 0.75rem;
     }
 
-    .app-document-editor .wiki-toolbar-desktop {
-      display: none !important;
-    }
-
-    .app-document-editor .wiki-toolbar-mobile {
-      display: flex !important;
-    }
-
-    .app-document-editor .wiki-toolbar-more-button {
-      width: auto;
-      min-width: 3.25rem;
-      padding: 0 0.55rem;
-    }
-
     .app-document-editor .rsw-toolbar {
       position: sticky;
       top: 2.75rem;
@@ -405,18 +405,7 @@ select {
       scrollbar-width: none;
     }
 
-    .app-document-editor .wiki-toolbar {
-      position: sticky;
-      top: 2.75rem;
-      z-index: 20;
-      overflow-x: auto;
-      flex-wrap: nowrap;
-      border-radius: 0.75rem 0.75rem 0 0;
-      scrollbar-width: none;
-    }
-
-    .app-document-editor .rsw-toolbar::-webkit-scrollbar,
-    .app-document-editor .wiki-toolbar::-webkit-scrollbar {
+    .app-document-editor .rsw-toolbar::-webkit-scrollbar {
       display: none;
     }
 
@@ -427,152 +416,6 @@ select {
       line-height: 1.7;
     }
 
-    .app-document-editor .ProseMirror {
-      min-height: calc(100dvh - 17rem);
-      padding: 1rem 1rem 5rem;
-      font-size: 1rem;
-      line-height: 1.7;
-      border-radius: 0 0 0.75rem 0.75rem;
-    }
-
-    .app-document-editor .wiki-mobile-more-toolbar {
-      position: static;
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 0.5rem;
-      overflow: visible;
-      border: 0;
-      border-radius: 0.75rem;
-    }
-
-    .app-document-editor .wiki-mobile-more-toolbar .wiki-format-btn {
-      width: 100%;
-      min-height: 2.5rem;
-    }
-  }
-
-  .app-document-editor .wiki-toolbar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.3rem;
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-bottom: 0;
-    border-radius: 0.9rem 0.9rem 0 0;
-    background: #14161c;
-    padding: 0.4rem;
-  }
-
-  .app-document-editor .wiki-toolbar-mobile {
-    display: none;
-  }
-
-  .app-document-editor .wiki-format-btn {
-    border: 0;
-    min-height: 2rem;
-    min-width: 2rem;
-    padding: 0 0.45rem;
-    border-radius: 0.45rem;
-    color: #a9afbd;
-    background: transparent;
-    font-size: 0.8rem;
-    font-weight: 600;
-  }
-
-  .app-document-editor .wiki-format-btn:hover,
-  .app-document-editor .wiki-format-btn.is-active {
-    background: rgba(255, 255, 255, 0.09);
-    color: #fff;
-  }
-
-  .app-document-editor .ProseMirror {
-    min-height: 58vh;
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 0 0 0.9rem 0.9rem;
-    background: #191b21;
-    box-shadow: 0 20px 50px -26px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(255, 255, 255, 0.02);
-    padding: 1.6rem 1.9rem 2.4rem;
-    color: #e6e8ef;
-    font-size: 1.02rem;
-    line-height: 1.82;
-    letter-spacing: 0.001em;
-    max-width: 72ch;
-    margin: 0 auto;
-    outline: none;
-  }
-
-  .app-document-editor .ProseMirror p { margin: 0.5rem 0; }
-  .app-document-editor .ProseMirror h1,
-  .app-document-editor .ProseMirror h2,
-  .app-document-editor .ProseMirror h3 {
-    color: #f3f4f8;
-    margin: 1.2rem 0 0.65rem;
-    line-height: 1.2;
-    font-weight: 700;
-  }
-
-  .app-document-editor .ProseMirror h1 { font-size: 2.05rem; letter-spacing: -0.02em; }
-  .app-document-editor .ProseMirror h2 { font-size: 1.35rem; letter-spacing: -0.01em; }
-  .app-document-editor .ProseMirror h3 { font-size: 1.1rem; }
-
-  .app-document-editor .ProseMirror a {
-    color: #8fb0ff;
-    text-decoration: underline;
-    text-decoration-color: rgba(143, 176, 255, 0.45);
-  }
-
-  .app-document-editor .ProseMirror code {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 6px;
-    padding: 0.08rem 0.34rem;
-    font-size: 0.86em;
-  }
-
-  .app-document-editor .ProseMirror blockquote {
-    margin: 0.75rem 0;
-    padding: 0.4rem 0.8rem;
-    border-left: 3px solid rgba(110,92,255,0.6);
-    background: rgba(110,92,255,0.09);
-    border-radius: 8px;
-    color: #d5d8e2;
-  }
-
-  .app-document-editor .wiki-slash-menu {
-    position: absolute;
-    z-index: 45;
-    display: flex;
-    flex-direction: column;
-    gap: 0.2rem;
-    width: min(18rem, calc(100% - 1.5rem));
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 0.8rem;
-    background: rgba(21, 23, 30, 0.96);
-    box-shadow: 0 18px 42px -22px rgba(0, 0, 0, 0.75);
-    padding: 0.35rem;
-  }
-
-  .app-document-editor .wiki-slash-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    border: 0;
-    border-radius: 0.6rem;
-    background: transparent;
-    color: #e5e9f2;
-    text-align: left;
-    padding: 0.45rem 0.6rem;
-    font-size: 0.86rem;
-  }
-
-  .app-document-editor .wiki-slash-item:hover {
-    background: rgba(255, 255, 255, 0.09);
-  }
-
-  .app-document-editor .wiki-slash-hint {
-    color: #8d95a8;
-    font-size: 0.76rem;
   }
 
   @media (min-width: 1024px) {

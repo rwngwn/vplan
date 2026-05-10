@@ -39,6 +39,8 @@ services:
     depends_on:
       api:
         condition: service_healthy
+    environment:
+      API_INTERNAL_URL: http://api:8000
     ports:
       - "3000:3000"
 

@@ -4,7 +4,12 @@ __pycache__/
 *.pyo
 *.pyd
 .venv/
+.venv311/
 backend/.venv/
+backend/.venv311/
+
+# Local run artifacts
+.run-logs/
 
 # Node
 node_modules/
@@ -13,6 +18,8 @@ frontend/node_modules/
 # Build outputs
 .next/
 frontend/.next/
+frontend/gate-results/
+frontend/test-results/
 *.tsbuildinfo
 
 # Env

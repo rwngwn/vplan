@@ -7,36 +7,28 @@ import {
   createNote,
   fetchNotes,
   fetchTasks,
-  getFeedbackPacket,
   getRevisionDiff,
   getWorkspace,
+  inlineAnnotationToFrontendEntity,
   listRevisions,
   saveWorkspace,
-  submitReview,
-  type InlineAnnotation,
+  type FrontendAnnotationEntity,
 } from '../../lib/api'
 import { t } from '../../lib/i18n'
 
-type Tab = 'edit' | 'preview' | 'diff' | 'review'
-type MobilePanel = 'revisions' | 'annotations' | 'notes' | 'review'
-type ReviewAnnotation = {
-  id: string
-  line_no: number
-  quote: string
-  comment: string
-}
+type Tab = 'edit' | 'preview' | 'diff'
+type MobilePanel = 'revisions' | 'annotations' | 'notes'
+type FeedbackAction = FrontendAnnotationEntity
 
-const TABS: Tab[] = ['edit', 'preview', 'diff', 'review']
-const MOBILE_PANELS: MobilePanel[] = ['revisions', 'annotations', 'notes', 'review']
+const TABS: Tab[] = ['edit', 'preview', 'diff']
+const MOBILE_PANELS: MobilePanel[] = ['revisions', 'annotations', 'notes']
 
 function lineFromOffset(text: string, offset: number): number {
   return text.slice(0, offset).split('\n').length
 }
 
-function reviewDecisionLabel(decision: 'pending' | 'approve' | 'request_changes'): string {
-  if (decision === 'approve') return t('review.approve')
-  if (decision === 'request_changes') return t('review.requestChanges')
-  return t('review.pending')
+function sanitizeFeedbackInput(value: string): string {
+  return value.replace(/[<>]/g, '').trim().slice(0, 1000)
 }
 
 export default function EditorPage() {
@@ -52,15 +44,13 @@ export default function EditorPage() {
   const [mobilePanel, setMobilePanel] = useState<MobilePanel | null>(null)
   const [markdown, setMarkdown] = useState('')
   const [saveState, setSaveState] = useState('')
-  const [annotationsDetected, setAnnotationsDetected] = useState<InlineAnnotation[]>([])
+  const [annotationsDetected, setAnnotationsDetected] = useState<FrontendAnnotationEntity[]>([])
   const [selectedRevisionId, setSelectedRevisionId] = useState('')
   const [diff, setDiff] = useState('')
-  const [feedbackPacket, setFeedbackPacket] = useState('')
-
-  const [reviewDecision, setReviewDecision] = useState<'approve' | 'request_changes'>('request_changes')
-  const [reviewSummary, setReviewSummary] = useState('')
   const [selectionComment, setSelectionComment] = useState('')
-  const [reviewAnnotations, setReviewAnnotations] = useState<ReviewAnnotation[]>([])
+  const [feedbackActions, setFeedbackActions] = useState<FeedbackAction[]>([])
+  const [editingActionId, setEditingActionId] = useState<string | null>(null)
+  const [uiError, setUiError] = useState('')
   const editorRef = useRef<HTMLTextAreaElement | null>(null)
 
   const [newNoteTitle, setNewNoteTitle] = useState('')
@@ -75,7 +65,7 @@ export default function EditorPage() {
     if (!taskId) return
     setSaveState(t('editor.saving'))
     const res = await saveWorkspace(taskId, markdown)
-    setAnnotationsDetected(res.annotations)
+    setAnnotationsDetected(res.annotations.map((item, index) => inlineAnnotationToFrontendEntity(item, index)))
     setSelectedRevisionId(res.revision_id)
     setSaveState(t('editor.savedRevision', res.revision_id))
     setTimeout(() => setSaveState(''), 1800)
@@ -92,32 +82,44 @@ export default function EditorPage() {
     const start = el.selectionStart
     const end = el.selectionEnd
     if (end <= start) return
-    const quote = markdown.slice(start, end).trim()
-    if (!quote || !selectionComment.trim()) return
+    const quote = sanitizeFeedbackInput(markdown.slice(start, end))
+    const comment = sanitizeFeedbackInput(selectionComment)
+    if (!quote || !comment) return
 
     const lineNo = lineFromOffset(markdown, start)
-    const ann: ReviewAnnotation = {
-      id: crypto.randomUUID(),
-      line_no: lineNo,
-      quote,
-      comment: selectionComment.trim(),
-    }
-    setReviewAnnotations((prev) => [...prev, ann])
+    const action: FeedbackAction = inlineAnnotationToFrontendEntity({ instruction: comment, line_no: lineNo }, feedbackActions.length)
+    action.quote = quote
+    setFeedbackActions((prev) => [...prev, action])
     setSelectionComment('')
+    setEditingActionId(null)
   }
 
-  const onSubmitReview = async () => {
-    if (!taskId || !selectedRevisionId) return
-    await submitReview(taskId, {
-      revision_id: selectedRevisionId,
-      decision: reviewDecision,
-      summary: reviewSummary,
-      inline_feedback: reviewAnnotations.map((a) => ({ line_no: a.line_no, comment: t('editor.inlineFeedbackQuote', a.comment, a.quote) })),
-    })
-    await mutateRevisions()
-    const packet = await getFeedbackPacket(taskId)
-    setFeedbackPacket(packet.feedback_prompt)
-    setTab('review')
+  const onEditFeedbackAction = (action: FeedbackAction) => {
+    setEditingActionId(action.id)
+    setSelectionComment(action.comment)
+    setUiError('')
+  }
+
+  const onSaveFeedbackActionEdit = () => {
+    if (!editingActionId) return
+    const comment = sanitizeFeedbackInput(selectionComment)
+    if (!comment) {
+      setUiError(t('editor.genericActionError'))
+      return
+    }
+    setFeedbackActions((prev) => prev.map((action) => (action.id === editingActionId ? { ...action, comment } : action)))
+    setSelectionComment('')
+    setEditingActionId(null)
+    setUiError('')
+  }
+
+  const onDeleteFeedbackAction = (actionId: string) => {
+    setFeedbackActions((prev) => prev.filter((action) => action.id !== actionId))
+    if (editingActionId === actionId) {
+      setEditingActionId(null)
+      setSelectionComment('')
+    }
+    setUiError('')
   }
 
   const onCreateNote = async () => {
@@ -158,7 +160,7 @@ export default function EditorPage() {
             className={`min-h-11 w-full rounded border px-2 py-2 text-left text-xs lg:min-h-0 lg:py-1 ${selectedRevisionId === r.revision_id ? 'border-[var(--accent-hover)] bg-[var(--bg-elevated)]' : 'border-[var(--border-default)] bg-[var(--bg-muted)]'}`}
           >
             <div className="font-mono">{r.revision_id}</div>
-            <div className="app-text-faint">{reviewDecisionLabel(r.review_decision)}</div>
+            <div className="app-text-faint">{t('editor.feedbackActionsCount', r.annotations_count)}</div>
           </button>
         ))}
       </div>
@@ -182,57 +184,54 @@ export default function EditorPage() {
     </div>
   )
 
-  const reviewControlsPanel = (
-    <div className="app-muted-panel rounded-lg p-4">
-      <div className="mb-3 flex flex-wrap gap-2">
-        <button onClick={() => setReviewDecision('approve')} className={`min-h-11 rounded px-3 py-2 text-xs lg:min-h-0 lg:px-2 lg:py-1 ${reviewDecision === 'approve' ? 'bg-[var(--status-success)]' : 'app-button-secondary'}`}>{t('review.approve')}</button>
-        <button onClick={() => setReviewDecision('request_changes')} className={`min-h-11 rounded px-3 py-2 text-xs lg:min-h-0 lg:px-2 lg:py-1 ${reviewDecision === 'request_changes' ? 'bg-[var(--status-warning)]' : 'app-button-secondary'}`}>{t('review.requestChanges')}</button>
-      </div>
-      <textarea value={reviewSummary} onChange={(e) => setReviewSummary(e.target.value)} className="app-field min-h-24 w-full rounded p-2 text-sm lg:min-h-20" placeholder={t('editor.reviewSummaryPlaceholder')} />
-      <button onClick={onSubmitReview} className="app-button-primary mt-2 min-h-11 rounded px-3 py-2 text-xs lg:min-h-0 lg:py-1">{t('editor.submitReview')}</button>
-      <pre className="app-field mt-3 max-h-48 overflow-auto whitespace-pre-wrap rounded p-2 text-xs text-[var(--text-secondary)] lg:max-h-none">{feedbackPacket || t('editor.feedbackPacketEmpty')}</pre>
-    </div>
-  )
-
   const annotationsPanel = (
     <div className="space-y-4">
       <section className="app-muted-panel rounded-lg p-3">
         <div className="app-kicker mb-2">{t('editor.annotations')}</div>
         <p className="app-text-faint mb-2 text-xs">{t('editor.annotationInstructions')}</p>
 
-        <textarea
-          value={selectionComment}
-          onChange={(e) => setSelectionComment(e.target.value)}
-          className="app-field min-h-24 w-full rounded p-2 text-xs lg:min-h-20"
-          placeholder={t('editor.selectionCommentPlaceholder')}
-        />
+          <textarea
+            value={selectionComment}
+            onChange={(e) => setSelectionComment(e.target.value)}
+            className="app-field min-h-24 w-full rounded p-2 text-xs lg:min-h-20"
+            placeholder={t('editor.selectionCommentPlaceholder')}
+          />
 
-        <button
-          onClick={() => {
-            if (editorRef.current) onCaptureSelection(editorRef.current)
-          }}
-          className="app-button-secondary mt-2 min-h-11 w-full rounded px-3 py-2 text-xs lg:min-h-0 lg:py-1.5"
-        >
-          {t('editor.addFromSelection')}
-        </button>
+          {uiError && <p className="mt-2 text-xs text-[var(--status-danger)]">{uiError}</p>}
 
-        <div className="mt-3 max-h-52 space-y-2 overflow-auto lg:max-h-none">
-          {reviewAnnotations.length === 0 && <p className="app-text-faint text-xs">{t('editor.noReviewAnnotations')}</p>}
-          {reviewAnnotations.map((a) => (
-            <div key={a.id} className="rounded border border-[var(--border-default)] bg-[var(--bg-field)] p-2">
-              <div className="text-[11px] text-[var(--status-warning)]">{t('editor.linePrefix')} {a.line_no}</div>
-              <div className="mt-1 text-xs text-[var(--text-secondary)]">“{a.quote.slice(0, 120)}”</div>
-              <div className="mt-1 text-xs">{a.comment}</div>
-            </div>
-          ))}
-        </div>
+          {!editingActionId && (
+            <button
+              onClick={() => {
+                if (editorRef.current) onCaptureSelection(editorRef.current)
+              }}
+              className="app-button-secondary mt-2 min-h-11 w-full rounded px-3 py-2 text-xs lg:min-h-0 lg:py-1.5"
+            >
+              {t('editor.addFromSelection')}
+            </button>
+          )}
+          {editingActionId && <button onClick={onSaveFeedbackActionEdit} className="app-button-primary mt-2 min-h-11 w-full rounded px-3 py-2 text-xs lg:min-h-0 lg:py-1.5">{t('editor.saveFeedbackEdit')}</button>}
+
+          <div className="mt-3 max-h-52 space-y-2 overflow-auto lg:max-h-none">
+            {feedbackActions.length === 0 && <p className="app-text-faint text-xs">{t('editor.noFeedbackActions')}</p>}
+            {feedbackActions.map((a) => (
+              <div key={a.id} className="rounded border border-[var(--border-default)] bg-[var(--bg-field)] p-2">
+                <div className="text-[11px] text-[var(--status-warning)]">{t('editor.linePrefix')} {a.line}</div>
+                <div className="mt-1 text-xs text-[var(--text-secondary)]">“{a.quote.slice(0, 120)}”</div>
+                <div className="mt-1 text-xs">{a.comment}</div>
+                <div className="mt-2 flex gap-2">
+                  <button onClick={() => onEditFeedbackAction(a)} className="app-button-secondary min-h-11 rounded px-2 py-1 text-xs lg:min-h-0">{t('editor.editFeedbackAction')}</button>
+                  <button onClick={() => onDeleteFeedbackAction(a.id)} className="app-button-secondary min-h-11 rounded px-2 py-1 text-xs lg:min-h-0">{t('editor.deleteFeedbackAction')}</button>
+                </div>
+              </div>
+            ))}
+          </div>
       </section>
 
       <section className="app-muted-panel rounded-lg p-3">
         <div className="app-kicker mb-1">{t('editor.detectedAgentInstructions')}</div>
         <div className="max-h-40 space-y-1 overflow-auto">
           {annotationsDetected.map((a, i) => (
-            <div key={`${a.line_no}-${i}`} className="rounded bg-[var(--bg-muted)] p-2 text-xs">{t('editor.linePrefix')} {a.line_no}: {a.instruction}</div>
+            <div key={`${a.id}-${i}`} className="rounded bg-[var(--bg-muted)] p-2 text-xs">{t('editor.linePrefix')} {a.anchor.line}: {a.comment}</div>
           ))}
         </div>
       </section>
@@ -273,6 +272,7 @@ export default function EditorPage() {
             <div className="min-h-0 flex-1 p-3 pb-20 lg:p-5 lg:pb-5">
               <textarea
                 ref={editorRef}
+                data-testid="editor-markdown-textarea"
                 value={markdown}
                 onChange={(e) => setMarkdown(e.target.value)}
                 className="app-field h-full w-full resize-none rounded-lg p-4 font-mono text-sm leading-6 lg:p-5 lg:leading-7"
@@ -297,13 +297,7 @@ export default function EditorPage() {
             </div>
           )}
 
-          {tab === 'review' && (
-            <div className="min-h-0 flex-1 overflow-auto p-3 pb-20 lg:p-5 lg:pb-5">
-              {reviewControlsPanel}
-            </div>
-          )}
-
-          <nav className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-4 border-t border-[var(--border-default)] bg-[var(--bg-surface)] lg:hidden">
+          <nav className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-3 border-t border-[var(--border-default)] bg-[var(--bg-surface)] lg:hidden">
             {MOBILE_PANELS.map((panelId) => (
               <button
                 key={panelId}
@@ -331,7 +325,6 @@ export default function EditorPage() {
             {mobilePanel === 'revisions' && revisionsPanel}
             {mobilePanel === 'annotations' && annotationsPanel}
             {mobilePanel === 'notes' && notesPanel}
-            {mobilePanel === 'review' && reviewControlsPanel}
           </section>
         </div>
       )}

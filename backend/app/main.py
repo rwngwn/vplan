@@ -1,11 +1,14 @@
+import os
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from fastapi import FastAPI, Header, HTTPException, status
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, ValidationError
 
 from .hn_digest_import import load_digests_from_dir
 from .markdown_workspace import parse_inline_annotations, render_task_markdown
-from .models import CreateKnowledgeFolderRequest, CreateKnowledgeNoteRequest, CreateTaskRequest, TransitionRequest, UpdateKnowledgeFolderRequest, UpdateKnowledgeNoteRequest, UpdateTaskRequest
+from .models import AIConfirmRequest, AIPreviewRequest, AnnotationScope, CreateDocumentAnnotationRequest, CreateDocumentRequest, CreateKnowledgeFolderRequest, CreateKnowledgeNoteRequest, CreateTaskRequest, TransitionRequest, UpdateDocumentAnnotationRequest, UpdateDocumentRequest, UpdateKnowledgeFolderRequest, UpdateKnowledgeNoteRequest, UpdateTaskRequest
 from .task_store import TaskStore
 from .telegram_ingest import TelegramIngestService
 
@@ -35,14 +38,67 @@ class ImportDigestsRequest(BaseModel):
     limit: int = 10
 
 
+class RunAnnotationsMigrationRequest(BaseModel):
+    dry_run: bool = True
+
+
 app = FastAPI(title="Backend API", version="0.6.0")
 store = TaskStore()
 telegram_ingest = TelegramIngestService(store)
 
 
+def _error(status_code: int, code: str, message: str) -> JSONResponse:
+    return JSONResponse(status_code=status_code, content={"error": {"code": code, "message": message}})
+
+
+def _enforce_mutation_rate_limit(owner_header: str | None) -> JSONResponse | None:
+    actor = (owner_header or "anonymous").strip() or "anonymous"
+    if not store.allow_mutation(actor):
+        return _error(429, "rate_limited", "too many mutation requests")
+    return None
+
+
+def _enforce_owner(owner_header: str | None, resource_owner: str) -> JSONResponse | None:
+    if not resource_owner:
+        return _error(403, "forbidden", "owner missing")
+    if owner_header != resource_owner:
+        return _error(403, "forbidden", "forbidden")
+    return None
+
+
+def _validated_owner_for_create(owner_header: str | None, payload_owner: str) -> tuple[str | None, JSONResponse | None]:
+    normalized_header = (owner_header or "").strip()
+    if not normalized_header:
+        return None, _error(401, "unauthorized", "x-owner header required")
+
+    normalized_payload = (payload_owner or "").strip()
+    if normalized_payload and normalized_payload != normalized_header:
+        return None, _error(403, "forbidden", "owner mismatch")
+
+    return normalized_header, None
+
+
+def _enforce_ops_privilege(x_ops_token: str | None) -> JSONResponse | None:
+    provided = (x_ops_token or "").strip()
+    required = os.getenv("OPERATIONS_TOKEN", "").strip()
+    if not required or provided != required:
+        return _error(403, "forbidden", "forbidden")
+    return None
+
+
+@app.exception_handler(RequestValidationError)
+async def request_validation_exception_handler(_request, _exc: RequestValidationError):
+    return _error(422, "validation_error", "invalid request")
+
+
 @app.get("/healthz")
 async def healthz():
     return {"status": "ok"}
+
+
+@app.get("/features/flags")
+async def feature_flags():
+    return store.get_feature_flags()
 
 
 @app.get("/tasks")
@@ -170,11 +226,13 @@ async def workspace_pull(task_id: str):
 @app.post("/workspace/tasks/{task_id}")
 async def workspace_save(task_id: str, payload: WorkspacePushRequest):
     annotations = parse_inline_annotations(payload.markdown)
-    ann_json = [{"instruction": ann.instruction, "line_no": ann.line_no} for ann in annotations]
+    ann_json = [{"scope": AnnotationScope.text.value, "instruction": ann.instruction, "line_no": ann.line_no} for ann in annotations]
     try:
         revision = store.set_workspace_markdown(task_id, payload.markdown, ann_json)
     except KeyError:
         raise HTTPException(status_code=404, detail="task not found")
+    except ValidationError:
+        raise HTTPException(status_code=400, detail="invalid annotation payload")
 
     return {"saved": True, "count": len(annotations), "revision_id": revision["revision_id"], "annotations": ann_json}
 
@@ -249,3 +307,230 @@ async def telemetry():
 async def task_dashboard_view():
     store.mark_task_dashboard_view()
     return {"ok": True}
+
+
+@app.get("/documents")
+async def list_documents():
+    return store.list_documents()
+
+
+@app.post("/documents", status_code=status.HTTP_201_CREATED)
+async def create_document(payload: CreateDocumentRequest, x_owner: str | None = Header(default=None)):
+    rate_limit_error = _enforce_mutation_rate_limit(x_owner)
+    if rate_limit_error is not None:
+        return rate_limit_error
+    owner, owner_error = _validated_owner_for_create(x_owner, payload.owner)
+    if owner_error is not None:
+        return owner_error
+    return store.create_document(payload.model_copy(update={"owner": owner}))
+
+
+@app.get("/documents/{document_id}")
+async def get_document(document_id: str):
+    try:
+        return store.get_document(document_id)
+    except KeyError:
+        return _error(404, "not_found", "document not found")
+
+
+@app.patch("/documents/{document_id}")
+async def update_document(document_id: str, payload: UpdateDocumentRequest, x_owner: str | None = Header(default=None)):
+    rate_limit_error = _enforce_mutation_rate_limit(x_owner)
+    if rate_limit_error is not None:
+        return rate_limit_error
+
+    try:
+        existing = store.get_document(document_id)
+    except KeyError:
+        return _error(404, "not_found", "document not found")
+
+    owner_error = _enforce_owner(x_owner, existing.owner)
+    if owner_error is not None:
+        return owner_error
+
+    try:
+        return store.update_document(document_id, payload)
+    except ValueError:
+        return _error(409, "conflict", "version conflict")
+
+
+@app.delete("/documents/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_document(document_id: str, x_owner: str | None = Header(default=None)):
+    rate_limit_error = _enforce_mutation_rate_limit(x_owner)
+    if rate_limit_error is not None:
+        return rate_limit_error
+    try:
+        existing = store.get_document(document_id)
+    except KeyError:
+        return _error(404, "not_found", "document not found")
+
+    owner_error = _enforce_owner(x_owner, existing.owner)
+    if owner_error is not None:
+        return owner_error
+
+    store.delete_document(document_id)
+    return JSONResponse(status_code=status.HTTP_204_NO_CONTENT, content=None)
+
+
+@app.get("/documents/{document_id}/annotations")
+async def list_document_annotations(document_id: str):
+    try:
+        return store.list_document_annotations(document_id)
+    except KeyError:
+        return _error(404, "not_found", "document not found")
+
+
+@app.post("/documents/{document_id}/annotations", status_code=status.HTTP_201_CREATED)
+async def create_document_annotation(document_id: str, payload: CreateDocumentAnnotationRequest, x_owner: str | None = Header(default=None)):
+    rate_limit_error = _enforce_mutation_rate_limit(x_owner)
+    if rate_limit_error is not None:
+        return rate_limit_error
+    try:
+        existing = store.get_document(document_id)
+    except KeyError:
+        return _error(404, "not_found", "document not found")
+
+    owner_error = _enforce_owner(x_owner, existing.owner)
+    if owner_error is not None:
+        return owner_error
+
+    return store.create_document_annotation(document_id, payload)
+
+
+@app.patch("/documents/{document_id}/annotations/{annotation_id}")
+async def update_document_annotation(document_id: str, annotation_id: str, payload: UpdateDocumentAnnotationRequest, x_owner: str | None = Header(default=None)):
+    rate_limit_error = _enforce_mutation_rate_limit(x_owner)
+    if rate_limit_error is not None:
+        return rate_limit_error
+    try:
+        existing = store.get_document(document_id)
+    except KeyError:
+        return _error(404, "not_found", "document not found")
+
+    owner_error = _enforce_owner(x_owner, existing.owner)
+    if owner_error is not None:
+        return owner_error
+
+    try:
+        return store.update_document_annotation(document_id, annotation_id, payload)
+    except KeyError:
+        return _error(404, "not_found", "annotation not found")
+    except ValueError:
+        return _error(409, "conflict", "version conflict")
+
+
+@app.delete("/documents/{document_id}/annotations/{annotation_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_document_annotation(document_id: str, annotation_id: str, x_owner: str | None = Header(default=None)):
+    rate_limit_error = _enforce_mutation_rate_limit(x_owner)
+    if rate_limit_error is not None:
+        return rate_limit_error
+    try:
+        existing = store.get_document(document_id)
+    except KeyError:
+        return _error(404, "not_found", "document not found")
+
+    owner_error = _enforce_owner(x_owner, existing.owner)
+    if owner_error is not None:
+        return owner_error
+
+    try:
+        store.delete_document_annotation(document_id, annotation_id)
+    except KeyError:
+        return _error(404, "not_found", "annotation not found")
+    return JSONResponse(status_code=status.HTTP_204_NO_CONTENT, content=None)
+
+
+@app.post("/documents/{document_id}/ai/preview")
+async def ai_preview(document_id: str, payload: AIPreviewRequest, x_owner: str | None = Header(default=None)):
+    rate_limit_error = _enforce_mutation_rate_limit(x_owner)
+    if rate_limit_error is not None:
+        return rate_limit_error
+    try:
+        existing = store.get_document(document_id)
+    except KeyError:
+        return _error(404, "not_found", "document not found")
+
+    owner_error = _enforce_owner(x_owner, existing.owner)
+    if owner_error is not None:
+        return owner_error
+
+    try:
+        return store.preview_ai_operation(document_id, payload.prompt, payload.operation_id, payload.base_version, x_owner or "anonymous")
+    except ValueError as exc:
+        if str(exc) == "stale_preview":
+            return _error(409, "stale_preview", "stale preview base revision")
+        return _error(400, "invalid_request", "invalid request")
+
+
+@app.post("/documents/{document_id}/ai/confirm")
+async def ai_confirm(document_id: str, payload: AIConfirmRequest, x_owner: str | None = Header(default=None)):
+    rate_limit_error = _enforce_mutation_rate_limit(x_owner)
+    if rate_limit_error is not None:
+        return rate_limit_error
+    try:
+        existing = store.get_document(document_id)
+    except KeyError:
+        return _error(404, "not_found", "document not found")
+
+    owner_error = _enforce_owner(x_owner, existing.owner)
+    if owner_error is not None:
+        return owner_error
+
+    try:
+        return store.confirm_ai_operation(document_id, payload.operation_id, payload.base_version, x_owner or "anonymous")
+    except ValueError as exc:
+        if str(exc) == "stale_preview":
+            return _error(409, "stale_preview", "stale preview base revision")
+        if str(exc) == "preview_not_found":
+            return _error(404, "preview_not_found", "preview not found")
+        return _error(400, "invalid_request", "invalid request")
+
+
+@app.post("/documents/{document_id}/ai/undo")
+async def ai_undo(document_id: str, x_owner: str | None = Header(default=None)):
+    rate_limit_error = _enforce_mutation_rate_limit(x_owner)
+    if rate_limit_error is not None:
+        return rate_limit_error
+    try:
+        existing = store.get_document(document_id)
+    except KeyError:
+        return _error(404, "not_found", "document not found")
+
+    owner_error = _enforce_owner(x_owner, existing.owner)
+    if owner_error is not None:
+        return owner_error
+
+    try:
+        return store.undo_last_ai_operation(document_id, x_owner or "anonymous")
+    except ValueError:
+        return _error(409, "undo_unavailable", "undo unavailable")
+
+
+@app.get("/documents/{document_id}/ai/audit")
+async def ai_audit(document_id: str, x_owner: str | None = Header(default=None)):
+    try:
+        existing = store.get_document(document_id)
+    except KeyError:
+        return _error(404, "not_found", "document not found")
+
+    owner_error = _enforce_owner(x_owner, existing.owner)
+    if owner_error is not None:
+        return owner_error
+
+    return store.list_ai_audit(document_id)
+
+
+@app.post("/ops/migrations/annotations-v2")
+async def run_annotations_v2_migration(payload: RunAnnotationsMigrationRequest, x_ops_token: str | None = Header(default=None)):
+    privilege_error = _enforce_ops_privilege(x_ops_token)
+    if privilege_error is not None:
+        return privilege_error
+    return store.run_annotations_v2_migration(dry_run=payload.dry_run)
+
+
+@app.post("/ops/migrations/annotations-v2/rollback")
+async def rollback_annotations_v2_read_path(x_ops_token: str | None = Header(default=None)):
+    privilege_error = _enforce_ops_privilege(x_ops_token)
+    if privilege_error is not None:
+        return privilege_error
+    return store.rollback_annotations_read_path()

@@ -6,13 +6,22 @@ const chromiumExecutablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
   || (existsSync(nixChromiumPath) ? nixChromiumPath : undefined)
 const e2ePort = 3100
 const baseURL = `http://127.0.0.1:${e2ePort}`
+const isParityGate = process.env.PLAYWRIGHT_PARITY_GATE === '1'
+const isReleaseGate = process.env.RELEASE_GATE_CI === '1'
 
 export default defineConfig({
   testDir: './tests/e2e',
-  retries: process.env.CI ? 2 : 1,
+  fullyParallel: false,
+  workers: 1,
+  retries: (isParityGate || isReleaseGate) ? 0 : (process.env.CI ? 2 : 1),
   use: {
     baseURL,
     trace: 'on-first-retry',
+    actionTimeout: 10_000,
+    navigationTimeout: 30_000,
+    permissions: ['clipboard-read', 'clipboard-write'],
+    reducedMotion: 'reduce',
+    colorScheme: 'light',
     launchOptions: chromiumExecutablePath ? { executablePath: chromiumExecutablePath } : undefined,
   },
   webServer: {

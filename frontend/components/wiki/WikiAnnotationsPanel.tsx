@@ -1,11 +1,4 @@
-type WikiAnnotation = {
-  id: string
-  body: string
-  quote: string
-  status: 'open' | 'resolved'
-  when: string
-  author: string
-}
+import type { FrontendAnnotationEntity as WikiAnnotation } from '../../lib/api'
 
 type WikiAnnotationsPanelProps = {
   annotationTab: 'open' | 'resolved'
@@ -13,6 +6,7 @@ type WikiAnnotationsPanelProps = {
   resolvedAnnotations: WikiAnnotation[]
   visibleAnnotations: WikiAnnotation[]
   researchState: 'idle' | 'running' | 'done' | 'error'
+  errorMessage?: string
   onAnnotationTabChange: (tab: 'open' | 'resolved') => void
   onProcessOpenAnnotations: () => void
   onResolveAnnotation: (id: string) => void
@@ -25,6 +19,7 @@ export function WikiAnnotationsPanel({
   resolvedAnnotations,
   visibleAnnotations,
   researchState,
+  errorMessage,
   onAnnotationTabChange,
   onProcessOpenAnnotations,
   onResolveAnnotation,
@@ -49,7 +44,10 @@ export function WikiAnnotationsPanel({
         </button>
       </div>
       {researchState === 'error' && (
-        <div className="px-3 pt-2 text-[11px] text-rose-300">Nepodařilo se vytvořit research brief.</div>
+        <div className="app-error-text px-3 pt-2 text-[11px]">Nepodařilo se vytvořit research brief.</div>
+      )}
+      {errorMessage && (
+        <div className="app-error-text px-3 pt-2 text-[11px]">{errorMessage}</div>
       )}
       <div className="space-y-2 overflow-auto p-3">
         {visibleAnnotations.length === 0 ? (
@@ -58,12 +56,12 @@ export function WikiAnnotationsPanel({
           visibleAnnotations.map((a) => (
             <div key={a.id} className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-muted)] p-3">
               <div className="mb-1 flex items-center gap-2 text-[11px] app-text-faint">
-                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[10px] text-white">YU</span>
+                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[10px] text-[var(--text-primary)]">YU</span>
                 <span className="font-semibold text-[var(--text-primary)]">{a.author}</span>
                 <span className="ml-auto">{a.when}</span>
               </div>
-              <div className="mb-2 rounded bg-[rgba(246,200,77,0.22)] px-2 py-1 text-xs">{a.quote}</div>
-              <p className="text-sm leading-5">{a.body}</p>
+              <div className="app-selection-quote mb-2 rounded px-2 py-1 text-xs">{a.quote}</div>
+              <p className="text-sm leading-5">{a.comment}</p>
               {a.status === 'open' && (
                 <div className="mt-2 flex justify-end">
                   <button
